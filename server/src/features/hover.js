@@ -13,7 +13,7 @@ function handleHover(params, documents, analyzer) {
         return {
             contents: {
                 kind: 'markdown',
-                value: `**${symbolName}** (built-in)\n\n---\n\n${BUILTIN_DOCS.get(symbolName)}`
+                value: BUILTIN_DOCS.get(symbolName)
             }
         };
     }

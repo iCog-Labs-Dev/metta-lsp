@@ -16,9 +16,11 @@ const KEYWORDS_JSON = path.resolve(__dirname, '../../server/src/keywords.json');
 const HIGHLIGHTS_SCM = path.resolve(__dirname, '../queries/metta/highlights.scm');
 
 const KEYWORDS_JSON_DATA = JSON.parse(fs.readFileSync(KEYWORDS_JSON, 'utf8'));
-const keywords = Object.keys(KEYWORDS_JSON_DATA.keywords);
-const builtins = Object.keys(KEYWORDS_JSON_DATA.builtins);
-const constants = Object.keys(KEYWORDS_JSON_DATA.constants);
+const keywords = KEYWORDS_JSON_DATA.classification?.keywords || [];
+const constants = KEYWORDS_JSON_DATA.classification?.constants || [];
+const builtinNames = Object.keys(KEYWORDS_JSON_DATA.builtins || {});
+const excluded = new Set([...keywords, ...constants]);
+const builtins = builtinNames.filter(name => !excluded.has(name));
 
 function toAnyOf(values) {
     return values.map(v => `"${v}"`).join(' ');
@@ -55,7 +57,7 @@ for (const [category, block] of Object.entries(blocks)) {
         process.exit(1);
     }
     scm = scm.replace(
-        new RegExp(`; <<GENERATED:${category}>>[\s\S]*?; <</GENERATED:${category}>>`, 'g'),
+        new RegExp(`; <<GENERATED:${category}>>[\\s\\S]*?; <</GENERATED:${category}>>`, 'g'),
         block
     );
 }

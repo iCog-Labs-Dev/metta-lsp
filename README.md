@@ -28,6 +28,8 @@ cd MeTTa-LSP
 npm install
 ```
 
+This repository is configured so a single root `npm install` also installs dependencies for `server/` and `grammar/` automatically (via root `postinstall`).
+
 Press **F5** in VS Code to launch the Extension Development Host.
 
 ## Build & Package
@@ -105,16 +107,25 @@ Thin LSP client that bootstraps the language server and forwards capabilities to
 ### Keyword Management
 
 Keywords, constants, and built-ins are managed in a single source of truth: `server/src/keywords.json`.
+The file uses a structured corelib schema:
+
+- `schemaVersion`
+- `builtins`: full corelib entries (summary, signatures, params, examples, and permanent `source` links)
+- `classification.keywords`: symbols highlighted as keywords
+- `classification.constants`: symbols highlighted as constants
+
+Corelib documentation links come from:
+`https://trueagi-io.github.io/hyperon-experimental/generated/corelib`
 
 To add a new keyword:
-1. Add the string to the appropriate category in `server/src/keywords.json`.
+1. Add the symbol to `classification.keywords` in `server/src/keywords.json`.
 2. Sync the Tree-sitter highlighter by running:
    ```powershell
-   cd grammar
-   npm run generate-highlights
+   npm run grammar:generate-highlights
    ```
 
 This ensures that the Language Server (for completions) and Tree-sitter (for syntax highlighting) stay perfectly in sync.
+Keyword highlighting is intentionally scoped to the language keyword set, independent from the full builtin list.
 
 ## License
 

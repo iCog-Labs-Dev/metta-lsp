@@ -34,8 +34,14 @@
         ]
     },
     "scripts": {
+        "postinstall": "npm install --prefix grammar && npm install --prefix server",
         "build": "esbuild client/src/extension.js --bundle --platform=node --external:vscode --outfile=dist/extension.js --minify",
         "watch": "esbuild client/src/extension.js --bundle --platform=node --external:vscode --outfile=dist/extension.js --watch",
+        "server:start": "npm run start --prefix server",
+        "grammar:generate": "npm run generate --prefix grammar",
+        "grammar:build": "npm run build --prefix grammar",
+        "grammar:test": "npm run test --prefix grammar",
+        "grammar:generate-highlights": "npm run generate-highlights --prefix grammar",
         "package": "npm run build && copy README.md README_REPO.md && copy /Y EXTENSION.md README.md && vsce package && move /Y README_REPO.md README.md",
         "vscode:prepublish": "npm run build"
     },
