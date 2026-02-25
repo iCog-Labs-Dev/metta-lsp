@@ -148,6 +148,7 @@ class Analyzer {
     }
 
     getOrParseFile(uri, content, oldContent = null) {
+        uri = normalizeUri(uri);
         const filePath = uriToPath(uri);
         if (!filePath) return null;
 
@@ -209,6 +210,7 @@ class Analyzer {
     }
 
     indexFile(uri, content) {
+        uri = normalizeUri(uri);
         const tree = this.parser.parse(content);
 
         if (!this.symbolQuery) return;

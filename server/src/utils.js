@@ -1,4 +1,5 @@
-const { URL } = require('url');
+const path = require('path');
+const { URL, pathToFileURL } = require('url');
 const keywordData = require('./keywords.json');
 
 const KEYWORD_SET = new Set(keywordData.classification?.keywords || []);
@@ -103,7 +104,16 @@ function normalizeUri(uri) {
     try {
         const parsed = new URL(uri);
         if (parsed.protocol === 'file:') {
-            return parsed.href.toLowerCase();
+            const filePath = uriToPath(uri);
+            if (!filePath) return parsed.href.toLowerCase();
+
+            let normalizedPath = path.normalize(filePath);
+            if (process.platform === 'win32' && /^[A-Z]:/.test(normalizedPath)) {
+                normalizedPath = normalizedPath[0].toLowerCase() + normalizedPath.slice(1);
+            }
+
+            const canonical = pathToFileURL(normalizedPath).href;
+            return process.platform === 'win32' ? canonical.toLowerCase() : canonical;
         }
         return uri;
     } catch (e) {

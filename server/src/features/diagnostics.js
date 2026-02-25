@@ -30,7 +30,7 @@ function validateTextDocument(document, analyzer) {
         }
     });
 
-    const definitionsByName = new Map();
+    const definitionsBySignature = new Map();
     const matches = analyzer.symbolQuery.matches(tree.rootNode);
 
     for (const match of matches) {
@@ -57,15 +57,18 @@ function validateTextDocument(document, analyzer) {
             }
 
             const name = nameNode.text;
-            if (!definitionsByName.has(name)) {
-                definitionsByName.set(name, []);
+            const arity = inferDefinitionArity(nameNode);
+            const key = `${name}::${arity}`;
+            if (!definitionsBySignature.has(key)) {
+                definitionsBySignature.set(key, []);
             }
-            definitionsByName.get(name).push(nameNode);
+            definitionsBySignature.get(key).push(nameNode);
         }
     }
 
-    for (const [name, nodes] of definitionsByName) {
+    for (const [key, nodes] of definitionsBySignature) {
         if (nodes.length > 1) {
+            const [name, arity] = key.split('::');
             for (const nameNode of nodes) {
                 diagnostics.push({
                     severity: DiagnosticSeverity.Warning,
@@ -73,7 +76,7 @@ function validateTextDocument(document, analyzer) {
                         start: { line: nameNode.startPosition.row, character: nameNode.startPosition.column },
                         end: { line: nameNode.endPosition.row, character: nameNode.endPosition.column }
                     },
-                    message: `Duplicate definition of '${name}' (${nodes.length} definitions in this file)`,
+                    message: `Duplicate definition of '${name}' with ${arity} argument(s) (${nodes.length} definitions in this file)`,
                     source: 'metta-lsp'
                 });
             }
@@ -128,6 +131,40 @@ function validateTextDocument(document, analyzer) {
                                 message: `Undefined function '${name}'`,
                                 source: 'metta-lsp'
                             });
+                        } else {
+                            const callArity = namedChildren.length - 1;
+                            const callableDefinitions = definitions.filter(d => d.op !== ':');
+                            const matchingDefinitions = callableDefinitions.filter(d => {
+                                const arity = getEntryArity(d);
+                                return arity === null || arity === callArity;
+                            });
+                            const concreteArities = Array.from(new Set(
+                                callableDefinitions
+                                    .map(getEntryArity)
+                                    .filter(a => a !== null)
+                            )).sort((a, b) => a - b);
+
+                            if (callableDefinitions.length > 0 && concreteArities.length > 0 && matchingDefinitions.length === 0) {
+                                diagnostics.push({
+                                    severity: DiagnosticSeverity.Error,
+                                    range: {
+                                        start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                                        end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                                    },
+                                    message: `Argument count mismatch for '${name}': expected ${formatExpectedArities(concreteArities)}, got ${callArity}`,
+                                    source: 'metta-lsp'
+                                });
+                            } else if (matchingDefinitions.length > 1) {
+                                diagnostics.push({
+                                    severity: DiagnosticSeverity.Warning,
+                                    range: {
+                                        start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                                        end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                                    },
+                                    message: `Ambiguous reference '${name}': ${matchingDefinitions.length} matching definitions for ${callArity} argument(s)`,
+                                    source: 'metta-lsp'
+                                });
+                            }
                         }
                     }
                 }
@@ -227,6 +264,65 @@ function collectBoundSymbols(rootNode) {
     }
 
     return bound;
+}
+
+function inferDefinitionArity(nameNode) {
+    if (!nameNode || !nameNode.parent || !nameNode.parent.parent) return 0;
+    const atomNode = nameNode.parent;
+    const listNode = atomNode.parent;
+    if (atomNode.type !== 'atom' || listNode.type !== 'list') return 0;
+
+    const named = listNode.children.filter(c => c.type === 'atom' || c.type === 'list');
+    if (named.length === 0 || named[0] !== atomNode) return 0;
+    return Math.max(0, named.length - 1);
+}
+
+function getEntryArity(entry) {
+    if (!entry) return null;
+
+    if (entry.op === '=' && Array.isArray(entry.parameters)) {
+        return entry.parameters.length;
+    }
+
+    if (entry.op === ':' && entry.typeSignature) {
+        return arityFromTypeSignature(entry.typeSignature);
+    }
+
+    return null;
+}
+
+function arityFromTypeSignature(typeSignature) {
+    const sig = (typeSignature || '').trim();
+    if (!sig.startsWith('(-> ')) return null;
+    const inner = sig.slice(4, -1).trim();
+    if (!inner) return 0;
+
+    const parts = [];
+    let current = '';
+    let depth = 0;
+
+    for (let i = 0; i < inner.length; i++) {
+        const ch = inner[i];
+        if (ch === '(') depth++;
+        if (ch === ')') depth--;
+
+        if (ch === ' ' && depth === 0) {
+            if (current.trim()) parts.push(current.trim());
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+
+    if (current.trim()) parts.push(current.trim());
+    if (parts.length === 0) return 0;
+    return Math.max(0, parts.length - 1);
+}
+
+function formatExpectedArities(arities) {
+    if (arities.length === 0) return 'unknown';
+    if (arities.length === 1) return `${arities[0]}`;
+    return arities.join(' or ');
 }
 
 function validateUndefinedVariables(rootNode, diagnostics) {

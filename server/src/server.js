@@ -21,6 +21,7 @@ const {
 const { handleDocumentSymbols } = require('./features/symbols');
 const { handleSemanticTokens } = require('./features/semantics');
 const { handleSignatureHelp } = require('./features/signature');
+const { normalizeUri } = require('./utils');
 
 const connection = createConnection(ProposedFeatures.all);
 
@@ -97,16 +98,17 @@ connection.onInitialized(() => {
 
 // Document changes
 documents.onDidChangeContent((change) => {
-    const oldContent = analyzer.parseCache.get(change.document.uri)?.content || null;
-    analyzer.indexFile(change.document.uri, change.document.getText());
-    analyzer.getOrParseFile(change.document.uri, change.document.getText(), oldContent);
+    const normalizedUri = normalizeUri(change.document.uri);
+    const oldContent = analyzer.parseCache.get(normalizedUri)?.content || null;
+    analyzer.indexFile(normalizedUri, change.document.getText());
+    analyzer.getOrParseFile(normalizedUri, change.document.getText(), oldContent);
 
     const diagnostics = validateTextDocument(change.document, analyzer);
     connection.sendDiagnostics({ uri: change.document.uri, diagnostics });
 });
 
 documents.onDidClose((event) => {
-    analyzer.parseCache.delete(event.document.uri);
+    analyzer.parseCache.delete(normalizeUri(event.document.uri));
 });
 
 // Feature handlers
