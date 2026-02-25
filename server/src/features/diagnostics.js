@@ -4,6 +4,7 @@ function validateTextDocument(document, analyzer) {
     const text = document.getText();
     const tree = analyzer.parser.parse(text);
     const diagnostics = [];
+    const boundSymbols = collectBoundSymbols(tree.rootNode);
 
     traverseTree(tree.rootNode, (node) => {
         if (node.isMissing) {
@@ -92,6 +93,8 @@ function validateTextDocument(document, analyzer) {
                     if (symbolNode) {
                         const name = symbolNode.text;
 
+                        if (boundSymbols.has(name)) return;
+
                         if (BUILTIN_SYMBOLS.has(name)) return;
 
                         if (validOperators.has(name)) return;
@@ -132,9 +135,98 @@ function validateTextDocument(document, analyzer) {
         }
     });
 
+    traverseTree(tree.rootNode, (node) => {
+        if (node.type !== 'list') return;
+
+        const namedChildren = node.children.filter(c => c.type === 'atom' || c.type === 'list');
+        if (namedChildren.length === 0) return;
+
+        const head = namedChildren[0];
+        const headSymbolNode = head.type === 'atom' ? head.children.find(c => c.type === 'symbol') : null;
+        const headName = headSymbolNode ? headSymbolNode.text : null;
+
+        for (let i = 1; i < namedChildren.length; i++) {
+            const child = namedChildren[i];
+            if (child.type !== 'atom') continue;
+
+            const symbolNode = child.children.find(c => c.type === 'symbol');
+            if (!symbolNode) continue;
+
+            const name = symbolNode.text;
+            if (validOperators.has(name)) continue;
+            if (BUILTIN_SYMBOLS.has(name)) continue;
+            if (boundSymbols.has(name)) continue;
+
+            const definitions = analyzer.globalIndex.get(name);
+            if (definitions && definitions.length > 0) continue;
+
+            if (headName === '=' || headName === ':' || headName === '->' || headName === 'macro' || headName === 'defmacro') {
+                if (i === 1) continue;
+            }
+
+            diagnostics.push({
+                severity: DiagnosticSeverity.Error,
+                range: {
+                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                },
+                message: `Undefined binding variable or function '${name}'`,
+                source: 'metta-lsp'
+            });
+        }
+    });
+
     validateUndefinedVariables(tree.rootNode, diagnostics);
 
     return diagnostics;
+}
+
+function collectBoundSymbols(rootNode) {
+    const bound = new Set();
+
+    function getNamedChildren(node) {
+        return node.children.filter(c => c.type === 'atom' || c.type === 'list');
+    }
+
+    function getHeadSymbol(listNode) {
+        const children = getNamedChildren(listNode);
+        if (children.length === 0 || children[0].type !== 'atom') return null;
+        const symbolNode = children[0].children.find(c => c.type === 'symbol');
+        return symbolNode ? symbolNode.text : null;
+    }
+
+    function maybeRecordBind(listNode) {
+        if (!listNode || listNode.type !== 'list') return;
+        if (getHeadSymbol(listNode) !== 'bind!') return;
+
+        const children = getNamedChildren(listNode);
+        if (children.length < 2 || children[1].type !== 'atom') return;
+
+        const boundSymbol = children[1].children.find(c => c.type === 'symbol');
+        if (boundSymbol) {
+            bound.add(boundSymbol.text);
+        }
+    }
+
+    for (let i = 0; i < rootNode.namedChildCount; i++) {
+        const node = rootNode.namedChild(i);
+        if (node.type === 'list') {
+            maybeRecordBind(node);
+            continue;
+        }
+
+        if (node.type === 'atom') {
+            const symbolNode = node.children.find(c => c.type === 'symbol');
+            if (!symbolNode || symbolNode.text !== '!') continue;
+
+            const next = rootNode.namedChild(i + 1);
+            if (next && next.type === 'list') {
+                maybeRecordBind(next);
+            }
+        }
+    }
+
+    return bound;
 }
 
 function validateUndefinedVariables(rootNode, diagnostics) {
