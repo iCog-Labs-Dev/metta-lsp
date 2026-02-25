@@ -83,7 +83,7 @@ function validateTextDocument(document, analyzer) {
         }
     }
 
-    const { BUILTIN_SYMBOLS } = require('../utils');
+    const { BUILTIN_SYMBOLS, BUILTIN_META } = require('../utils');
     const validOperators = new Set(['=', ':', '->', 'macro', 'defmacro', '==', '~=', '+', '-', '*', '/', '>', '<', '>=', '<=']);
 
     traverseTree(tree.rootNode, (node) => {
@@ -154,7 +154,7 @@ function validateTextDocument(document, analyzer) {
                                     message: `Argument count mismatch for '${name}': expected ${formatExpectedArities(concreteArities)}, got ${callArity}`,
                                     source: 'metta-lsp'
                                 });
-                            } else if (matchingDefinitions.length > 1) {
+                            } else if (matchingDefinitions.length > 1 && !hasTypedOverloadForArity(name, callArity, analyzer, BUILTIN_META)) {
                                 diagnostics.push({
                                     severity: DiagnosticSeverity.Warning,
                                     range: {
@@ -213,9 +213,82 @@ function validateTextDocument(document, analyzer) {
         }
     });
 
+    validateCallTypeSignatures(tree.rootNode, analyzer, diagnostics, BUILTIN_META, validOperators, boundSymbols);
+
     validateUndefinedVariables(tree.rootNode, diagnostics);
 
     return diagnostics;
+}
+
+function validateCallTypeSignatures(rootNode, analyzer, diagnostics, builtinMeta, validOperators, boundSymbols) {
+    const nonCallableForms = new Set(['=', ':', '->', 'macro', 'defmacro', 'let', 'let*', 'match', 'case']);
+
+    traverseTree(rootNode, (node) => {
+        if (node.type !== 'list') return;
+
+        const namedChildren = node.children.filter(c => c.type === 'atom' || c.type === 'list');
+        if (namedChildren.length === 0) return;
+
+        const head = namedChildren[0];
+        if (head.type !== 'atom') return;
+        const symbolNode = head.children.find(c => c.type === 'symbol');
+        if (!symbolNode) return;
+
+        const name = symbolNode.text;
+        if (nonCallableForms.has(name)) return;
+        if (name.startsWith('$')) return;
+
+        // Skip function name position inside definitions/types, e.g. (= (foo $x) ...)
+        let p = node.parent;
+        if (p && p.type === 'list') {
+            const pNamed = p.children.filter(c => c.type === 'atom' || c.type === 'list');
+            if (pNamed.length > 0 && (pNamed[0].text === '=' || pNamed[0].text === ':' || pNamed[0].text === '->' || pNamed[0].text === 'macro' || pNamed[0].text === 'defmacro')) {
+                if (pNamed[1] === node || pNamed[1] === head) return;
+            }
+        }
+
+        if (boundSymbols.has(name) && !(analyzer.globalIndex.get(name)?.length)) {
+            return;
+        }
+
+        const args = namedChildren.slice(1);
+        const callArity = args.length;
+        const overloads = collectTypedOverloads(name, analyzer, builtinMeta)
+            .filter(o => o.paramTypes.length === callArity);
+
+        if (overloads.length === 0) return;
+
+        const argTypes = args.map(inferArgumentType);
+        const matching = overloads.filter(o =>
+            o.paramTypes.every((expected, i) => isTypeCompatible(expected, argTypes[i]))
+        );
+
+        if (matching.length === 0) {
+            const expected = overloads.map(o => `(${o.paramTypes.join(', ')})`).join(' or ');
+            diagnostics.push({
+                severity: DiagnosticSeverity.Error,
+                range: {
+                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                },
+                message: `Type mismatch for '${name}': argument types [${argTypes.join(', ')}] do not match ${expected}`,
+                source: 'metta-lsp'
+            });
+            return;
+        }
+
+        if (matching.length > 1) {
+            diagnostics.push({
+                severity: DiagnosticSeverity.Warning,
+                range: {
+                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                },
+                message: `Ambiguous reference '${name}': ${matching.length} matching typed overloads for ${callArity} argument(s)`,
+                source: 'metta-lsp'
+            });
+        }
+    });
 }
 
 function collectBoundSymbols(rootNode) {
@@ -264,6 +337,119 @@ function collectBoundSymbols(rootNode) {
     }
 
     return bound;
+}
+
+function collectTypedOverloads(name, analyzer, builtinMeta) {
+    const overloads = [];
+
+    const entries = analyzer.globalIndex.get(name) || [];
+    for (const entry of entries) {
+        if (entry.op !== ':' || !entry.typeSignature) continue;
+        const parsed = parseArrowType(entry.typeSignature);
+        if (!parsed) continue;
+        overloads.push(parsed);
+    }
+
+    const meta = builtinMeta.get(name);
+    if (meta && Array.isArray(meta.signatures)) {
+        for (const sig of meta.signatures) {
+            const parsed = parseSignatureText(sig);
+            if (!parsed) continue;
+            overloads.push(parsed);
+        }
+    }
+
+    return overloads;
+}
+
+function parseSignatureText(signature) {
+    if (typeof signature !== 'string') return null;
+    const idx = signature.indexOf(':');
+    const rhs = idx >= 0 ? signature.slice(idx + 1).trim() : signature.trim();
+    return parseArrowType(rhs);
+}
+
+function parseArrowType(typeSignature) {
+    const sig = (typeSignature || '').trim();
+    if (!sig.startsWith('(-> ') || !sig.endsWith(')')) return null;
+
+    const inner = sig.slice(4, -1).trim();
+    const parts = splitTopLevelTypeParts(inner);
+    if (parts.length < 1) return { paramTypes: [], returnType: null };
+
+    const paramTypes = parts.slice(0, -1);
+    const returnType = parts[parts.length - 1] || null;
+    return { paramTypes, returnType };
+}
+
+function splitTopLevelTypeParts(inner) {
+    const parts = [];
+    let current = '';
+    let depth = 0;
+
+    for (let i = 0; i < inner.length; i++) {
+        const ch = inner[i];
+        if (ch === '(') depth++;
+        if (ch === ')') depth--;
+
+        if (ch === ' ' && depth === 0) {
+            if (current.trim()) parts.push(current.trim());
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+
+    if (current.trim()) parts.push(current.trim());
+    return parts;
+}
+
+function inferArgumentType(node) {
+    if (!node) return 'Unknown';
+
+    if (node.type === 'atom') {
+        if (node.children.find(c => c.type === 'number')) return 'Number';
+        if (node.children.find(c => c.type === 'string')) return 'String';
+        const variableNode = node.children.find(c => c.type === 'variable');
+        if (variableNode) return 'Unknown';
+
+        const symbolNode = node.children.find(c => c.type === 'symbol');
+        if (!symbolNode) return 'Unknown';
+        if (symbolNode.text === 'True' || symbolNode.text === 'False') return 'Bool';
+        return 'Unknown';
+    }
+
+    if (node.type === 'list') {
+        return 'Expression';
+    }
+
+    return 'Unknown';
+}
+
+function isGenericType(typeName) {
+    const t = (typeName || '').trim();
+    if (!t) return true;
+    if (t === 'Any' || t === 'Atom' || t === 'Expression' || t === '%Undefined%') return true;
+    if (t.startsWith('$')) return true;
+    if (t.includes('#')) return true;
+    return false;
+}
+
+function isTypeCompatible(expected, actual) {
+    const exp = (expected || '').trim();
+    if (isGenericType(exp)) return true;
+    if (actual === 'Unknown') return true;
+    if (exp === actual) return true;
+
+    if (exp === 'Bool') return actual === 'Bool';
+    if (exp === 'Number') return actual === 'Number';
+    if (exp === 'String') return actual === 'String';
+
+    return false;
+}
+
+function hasTypedOverloadForArity(name, arity, analyzer, builtinMeta) {
+    return collectTypedOverloads(name, analyzer, builtinMeta).some(o => o.paramTypes.length === arity);
 }
 
 function inferDefinitionArity(nameNode) {
