@@ -132,7 +132,172 @@ function validateTextDocument(document, analyzer) {
         }
     });
 
+    validateUndefinedVariables(tree.rootNode, diagnostics);
+
     return diagnostics;
+}
+
+function validateUndefinedVariables(rootNode, diagnostics) {
+    function getNamedChildren(node) {
+        return node.children.filter(c => c.type === 'atom' || c.type === 'list');
+    }
+
+    function getVariableNameFromAtom(atomNode) {
+        if (!atomNode || atomNode.type !== 'atom') return null;
+        const variableNode = atomNode.children.find(c => c.type === 'variable');
+        return variableNode ? variableNode.text : null;
+    }
+
+    function collectPatternVariables(patternNode, out = new Set()) {
+        if (!patternNode) return out;
+
+        if (patternNode.type === 'atom') {
+            const variableName = getVariableNameFromAtom(patternNode);
+            if (variableName) out.add(variableName);
+            return out;
+        }
+
+        if (patternNode.type === 'list') {
+            const parts = getNamedChildren(patternNode);
+            for (const part of parts) {
+                collectPatternVariables(part, out);
+            }
+        }
+
+        return out;
+    }
+
+    function getHeadSymbol(listNode) {
+        if (!listNode || listNode.type !== 'list') return null;
+        const head = getNamedChildren(listNode)[0];
+        if (!head || head.type !== 'atom') return null;
+        const symbolNode = head.children.find(c => c.type === 'symbol');
+        return symbolNode ? symbolNode.text : null;
+    }
+
+    function reportUndefined(variableNode) {
+        diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: {
+                start: { line: variableNode.startPosition.row, character: variableNode.startPosition.column },
+                end: { line: variableNode.endPosition.row, character: variableNode.endPosition.column }
+            },
+            message: `Undefined variable '${variableNode.text}'`,
+            source: 'metta-lsp'
+        });
+    }
+
+    function visit(node, env, checkVars) {
+        if (!node) return;
+
+        if (node.type === 'atom') {
+            if (!checkVars) return;
+            const variableNode = node.children.find(c => c.type === 'variable');
+            if (!variableNode) return;
+            if (!env.has(variableNode.text)) {
+                reportUndefined(variableNode);
+            }
+            return;
+        }
+
+        if (node.type !== 'list') {
+            for (let i = 0; i < node.namedChildCount; i++) {
+                visit(node.namedChild(i), env, checkVars);
+            }
+            return;
+        }
+
+        const children = getNamedChildren(node);
+        if (children.length === 0) return;
+        const headSymbol = getHeadSymbol(node);
+
+        if (headSymbol === '=') {
+            const defHead = children[1];
+            const bodyNodes = children.slice(2);
+            const localEnv = new Set(env);
+
+            if (defHead && defHead.type === 'list') {
+                const signatureParts = getNamedChildren(defHead);
+                for (let i = 1; i < signatureParts.length; i++) {
+                    for (const variableName of collectPatternVariables(signatureParts[i])) {
+                        localEnv.add(variableName);
+                    }
+                }
+            }
+
+            for (const bodyNode of bodyNodes) {
+                visit(bodyNode, localEnv, true);
+            }
+            return;
+        }
+
+        if (headSymbol === 'let') {
+            if (!checkVars) {
+                for (let i = 0; i < node.namedChildCount; i++) {
+                    visit(node.namedChild(i), env, checkVars);
+                }
+                return;
+            }
+
+            const binderAtom = children[1];
+            const exprNode = children[2];
+            const bodyNodes = children.slice(3);
+
+            if (exprNode) visit(exprNode, env, true);
+
+            const localEnv = new Set(env);
+            for (const variableName of collectPatternVariables(binderAtom)) {
+                localEnv.add(variableName);
+            }
+
+            for (const bodyNode of bodyNodes) {
+                visit(bodyNode, localEnv, true);
+            }
+            return;
+        }
+
+        if (headSymbol === 'let*') {
+            if (!checkVars) {
+                for (let i = 0; i < node.namedChildCount; i++) {
+                    visit(node.namedChild(i), env, checkVars);
+                }
+                return;
+            }
+
+            const bindingsList = children[1];
+            const bodyNodes = children.slice(2);
+            const localEnv = new Set(env);
+
+            if (bindingsList && bindingsList.type === 'list') {
+                const bindings = getNamedChildren(bindingsList).filter(n => n.type === 'list');
+                for (const binding of bindings) {
+                    const bindingParts = getNamedChildren(binding);
+                    if (bindingParts.length === 0) continue;
+
+                    const binderAtom = bindingParts[0];
+                    const valueParts = bindingParts.slice(1);
+                    for (const valueNode of valueParts) {
+                        visit(valueNode, localEnv, true);
+                    }
+
+                    for (const variableName of collectPatternVariables(binderAtom)) {
+                        localEnv.add(variableName);
+                    }
+                }
+            }
+
+            for (const bodyNode of bodyNodes) {
+                visit(bodyNode, localEnv, true);
+            }
+            return;
+        }
+
+        for (const child of children) {
+            visit(child, env, checkVars);
+        }
+    }
+
+    visit(rootNode, new Set(), false);
 }
 
 function traverseTree(node, callback) {
