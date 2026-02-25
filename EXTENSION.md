@@ -5,7 +5,7 @@ Full-featured Language Server Protocol (LSP) support for the [MeTTa](https://wik
 ## Features
 
 - **Syntax Highlighting** — Tree-sitter powered semantic coloring for keywords, functions, variables, strings, numbers, and operators
-- **Diagnostics** — Real-time syntax error reporting and duplicate definition warnings as you type
+- **Diagnostics** — Real-time checks for syntax errors, undefined names, arity/type mismatches, and overload ambiguity
 - **Go to Definition** — Jump to any function or type definition across the workspace
 - **Hover Info** — View type signatures and definitions by hovering over symbols
 - **Auto-Completion** — Context-aware suggestions for keywords and project symbols
@@ -26,6 +26,18 @@ Full-featured Language Server Protocol (LSP) support for the [MeTTa](https://wik
 ### From Marketplace
 
 Search for **MeTTa Language Support** in the VS Code Extensions panel.
+
+## Diagnostics
+
+The language server reports:
+
+- Syntax and parse errors
+- Undefined function calls
+- Undefined variables in scoped blocks (`=`, `let`, `let*`)
+- Undefined binding symbols for plain symbols not introduced by `bind!`
+- Argument count mismatch for function calls
+- Type mismatch for typed calls (`:` signatures and built-ins)
+- Ambiguous overload references
 
 ## Usage
 

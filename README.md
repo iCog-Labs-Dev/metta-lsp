@@ -5,7 +5,7 @@ Full-featured Language Server Protocol (LSP) support for the [MeTTa](https://wik
 ## Features
 
 - **Syntax Highlighting** — Tree-sitter powered semantic coloring for keywords, functions, variables, strings, numbers, and operators
-- **Diagnostics** — Real-time syntax error reporting, duplicate top-level definition warnings, and undefined function detection
+- **Diagnostics** — Real-time checks for syntax, scope, arity, type mismatches, and overload ambiguity
 - **Go to Definition** — Jump to any function or type definition across the workspace
 - **Rich Hover Documentation** — Highly detailed hover info including type signatures, descriptions, parameters, and return types
 - **Auto-Completion** — Context-aware suggestions for keywords and project symbols
@@ -103,6 +103,19 @@ Each LSP capability is isolated in its own module under `server/src/features/`. 
 Thin LSP client that bootstraps the language server and forwards capabilities to VS Code.
 
 ## Maintenance
+
+### Diagnostics Coverage
+
+Current diagnostics include:
+
+- Syntax errors and missing nodes
+- Duplicate top-level definitions (warning only for same function name and same arity)
+- Undefined function calls
+- Undefined scoped variables in `=`, `let`, and `let*` (including destructured binders like `($h $t)`)
+- Undefined binding symbols (plain symbols that are neither built-in, user-defined, nor introduced by `bind!`)
+- Argument count mismatch for calls
+- Type mismatch for calls when `:` signatures or built-in signatures are available
+- Ambiguous reference warnings when multiple overloads match the same call
 
 ### Keyword Management
 
