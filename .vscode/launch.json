@@ -6,7 +6,8 @@
             "type": "extensionHost",
             "request": "launch",
             "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}"
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--disable-extension=undefined_publisher.metta-extension"
             ],
             "outFiles": [
                 "${workspaceFolder}/client/src/**/*.js"
