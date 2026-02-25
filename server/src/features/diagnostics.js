@@ -2,12 +2,14 @@ const { DiagnosticSeverity } = require('vscode-languageserver/node');
 
 function validateTextDocument(document, analyzer) {
     const text = document.getText();
+    const sourceUri = document.uri;
     const tree = analyzer.parser.parse(text);
     const diagnostics = [];
     const boundSymbols = collectBoundSymbols(tree.rootNode);
 
     traverseTree(tree.rootNode, (node) => {
         if (node.isMissing) {
+            if (isInsideModuleDirective(node)) return;
             diagnostics.push({
                 severity: DiagnosticSeverity.Error,
                 range: {
@@ -18,6 +20,7 @@ function validateTextDocument(document, analyzer) {
                 source: 'metta-lsp'
             });
         } else if (node.type === 'ERROR') {
+            if (isInsideModuleDirective(node)) return;
             diagnostics.push({
                 severity: DiagnosticSeverity.Error,
                 range: {
@@ -122,7 +125,7 @@ function validateTextDocument(document, analyzer) {
                             }
                         }
 
-                        const definitions = analyzer.globalIndex.get(name);
+                        const definitions = analyzer.getVisibleEntries(name, sourceUri);
                         if (!definitions || definitions.length === 0) {
                             diagnostics.push({
                                 severity: DiagnosticSeverity.Error,
@@ -156,7 +159,7 @@ function validateTextDocument(document, analyzer) {
                                     message: `Argument count mismatch for '${name}': expected ${formatExpectedArities(concreteArities)}, got ${callArity}`,
                                     source: 'metta-lsp'
                                 });
-                            } else if (matchingDefinitions.length > 1 && !hasTypedOverloadForArity(name, callArity, analyzer, BUILTIN_META)) {
+                            } else if (matchingDefinitions.length > 1 && !hasTypedOverloadForArity(name, callArity, analyzer, BUILTIN_META, sourceUri)) {
                                 diagnostics.push({
                                     severity: DiagnosticSeverity.Warning,
                                     range: {
@@ -185,6 +188,10 @@ function validateTextDocument(document, analyzer) {
         const headSymbolNode = head.type === 'atom' ? head.children.find(c => c.type === 'symbol') : null;
         const headName = headSymbolNode ? headSymbolNode.text : null;
 
+        if (headName === 'import!' || headName === 'register-module!') {
+            return;
+        }
+
         for (let i = 1; i < namedChildren.length; i++) {
             const child = namedChildren[i];
             if (child.type !== 'atom') continue;
@@ -197,7 +204,7 @@ function validateTextDocument(document, analyzer) {
             if (BUILTIN_SYMBOLS.has(name)) continue;
             if (boundSymbols.has(name)) continue;
 
-            const definitions = analyzer.globalIndex.get(name);
+            const definitions = analyzer.getVisibleEntries(name, sourceUri);
             if (definitions && definitions.length > 0) continue;
 
             if (headName === '=' || headName === ':' || headName === '->' || headName === 'macro' || headName === 'defmacro') {
@@ -216,11 +223,28 @@ function validateTextDocument(document, analyzer) {
         }
     });
 
-    validateCallTypeSignatures(tree.rootNode, analyzer, diagnostics, BUILTIN_META, validOperators, boundSymbols);
+    validateCallTypeSignatures(tree.rootNode, analyzer, diagnostics, BUILTIN_META, validOperators, boundSymbols, sourceUri);
 
     validateUndefinedVariables(tree.rootNode, diagnostics);
 
     return diagnostics;
+}
+
+function isInsideModuleDirective(node) {
+    let current = node;
+    while (current) {
+        if (current.type === 'list') {
+            const named = current.children.filter(c => c.type === 'atom' || c.type === 'list');
+            if (named.length > 0 && named[0].type === 'atom') {
+                const head = named[0].text;
+                if (head === 'register-module!' || head === 'import!') {
+                    return true;
+                }
+            }
+        }
+        current = current.parent;
+    }
+    return false;
 }
 
 function isCaseBranchHead(listNode) {
@@ -265,7 +289,7 @@ function isInsideCaseBranches(node) {
     return false;
 }
 
-function validateCallTypeSignatures(rootNode, analyzer, diagnostics, builtinMeta, validOperators, boundSymbols) {
+function validateCallTypeSignatures(rootNode, analyzer, diagnostics, builtinMeta, validOperators, boundSymbols, sourceUri) {
     const nonCallableForms = new Set(['=', ':', '->', 'macro', 'defmacro', 'let', 'let*', 'match', 'case', 'if']);
 
     traverseTree(rootNode, (node) => {
@@ -291,13 +315,13 @@ function validateCallTypeSignatures(rootNode, analyzer, diagnostics, builtinMeta
             }
         }
 
-        if (boundSymbols.has(name) && !(analyzer.globalIndex.get(name)?.length)) {
+        if (boundSymbols.has(name) && !(analyzer.getVisibleEntries(name, sourceUri)?.length)) {
             return;
         }
 
         const args = namedChildren.slice(1);
         const callArity = args.length;
-        const overloads = collectTypedOverloads(name, analyzer, builtinMeta)
+        const overloads = collectTypedOverloads(name, analyzer, builtinMeta, sourceUri)
             .filter(o => o.paramTypes.length === callArity);
 
         if (overloads.length === 0) return;
@@ -383,10 +407,10 @@ function collectBoundSymbols(rootNode) {
     return bound;
 }
 
-function collectTypedOverloads(name, analyzer, builtinMeta) {
+function collectTypedOverloads(name, analyzer, builtinMeta, sourceUri) {
     const overloads = [];
 
-    const entries = analyzer.globalIndex.get(name) || [];
+    const entries = analyzer.getVisibleEntries(name, sourceUri) || [];
     for (const entry of entries) {
         if (entry.op !== ':' || !entry.typeSignature) continue;
         const parsed = parseArrowType(entry.typeSignature);
@@ -492,8 +516,8 @@ function isTypeCompatible(expected, actual) {
     return false;
 }
 
-function hasTypedOverloadForArity(name, arity, analyzer, builtinMeta) {
-    return collectTypedOverloads(name, analyzer, builtinMeta).some(o => o.paramTypes.length === arity);
+function hasTypedOverloadForArity(name, arity, analyzer, builtinMeta, sourceUri) {
+    return collectTypedOverloads(name, analyzer, builtinMeta, sourceUri).some(o => o.paramTypes.length === arity);
 }
 
 function inferDefinitionArity(nameNode) {

@@ -14,6 +14,8 @@ class Analyzer {
         this.globalIndex = new Map();
         this.parseCache = new Map();
         this.scopeTrees = new Map();
+        this.moduleMeta = new Map();
+        this.globalModuleRoots = new Set();
 
         this.initializeQueries();
     }
@@ -227,6 +229,7 @@ class Analyzer {
         }
 
         const validOps = new Set(['=', ':', '->', 'macro', 'defmacro']);
+        this.updateModuleMetadata(uri, tree, content);
 
         for (const match of matches) {
             const nameNode = match.captures.find(c => c.name === 'name')?.node;
@@ -319,6 +322,167 @@ class Analyzer {
             }
         }
 
+    }
+
+    updateModuleMetadata(uri, tree, content = null) {
+        const oldMeta = this.moduleMeta.get(uri);
+        if (oldMeta) {
+            for (const root of oldMeta.registerRoots) {
+                this.globalModuleRoots.delete(root);
+            }
+        }
+
+        const imports = new Set();
+        const registerRoots = new Set();
+        const filePath = uriToPath(uri);
+        const fileDir = filePath ? path.dirname(filePath) : null;
+
+        if (typeof content === 'string') {
+            const registerRegex = /\(\s*register-module!\s+([^\s\)]+)/g;
+            let regMatch;
+            while ((regMatch = registerRegex.exec(content)) !== null) {
+                const raw = stripQuotes(regMatch[1].trim());
+                if (!raw || raw.startsWith('&') || !fileDir) continue;
+                const abs = path.isAbsolute(raw)
+                    ? path.resolve(path.normalize(raw))
+                    : path.resolve(fileDir, raw);
+                registerRoots.add(abs);
+            }
+
+            const importRegex = /\(\s*import!\s+([^\)]*)\)/g;
+            let impMatch;
+            while ((impMatch = importRegex.exec(content)) !== null) {
+                const argString = impMatch[1];
+                const tokens = argString
+                    .split(/\s+/)
+                    .map(t => t.trim())
+                    .filter(Boolean)
+                    .filter(t => !t.startsWith('&'));
+                if (tokens.length === 0) continue;
+                imports.add(stripQuotes(tokens[tokens.length - 1]));
+            }
+        } else {
+            traverseTree(tree.rootNode, (node) => {
+                if (node.type !== 'list') return;
+                const named = node.children.filter(c => c.type === 'atom' || c.type === 'list');
+                if (named.length === 0 || named[0].type !== 'atom') return;
+                const head = named[0].text;
+
+                if (head === 'import!') {
+                    const importArg = named
+                        .slice(1)
+                        .map(n => n.text.trim())
+                        .filter(v => v && !v.startsWith('&'))
+                        .pop();
+                    if (importArg) imports.add(stripQuotes(importArg));
+                }
+
+                if (head === 'register-module!') {
+                    for (const arg of named.slice(1)) {
+                        const raw = stripQuotes(arg.text.trim());
+                        if (!raw || raw.startsWith('&')) continue;
+                        if (!fileDir) continue;
+                        const abs = path.isAbsolute(raw)
+                            ? path.resolve(path.normalize(raw))
+                            : path.resolve(fileDir, raw);
+                        registerRoots.add(abs);
+                    }
+                }
+            });
+        }
+
+        for (const root of registerRoots) {
+            this.globalModuleRoots.add(root);
+        }
+        this.moduleMeta.set(uri, {
+            imports: Array.from(imports),
+            registerRoots: Array.from(registerRoots)
+        });
+    }
+
+    resolveImportTargets(spec, baseUri, roots) {
+        if (!spec) return [];
+        const targets = [];
+        const seen = new Set();
+        const basePath = uriToPath(baseUri);
+        const baseDir = basePath ? path.dirname(basePath) : null;
+        const tryPath = (candidate) => {
+            if (!candidate) return;
+            const variants = [candidate];
+            if (!candidate.endsWith('.metta')) variants.push(`${candidate}.metta`);
+            variants.push(path.join(candidate, 'main.metta'));
+            for (const variant of variants) {
+                try {
+                    if (fs.existsSync(variant) && fs.statSync(variant).isFile()) {
+                        const uri = normalizeUri(`file:///${variant.replace(/\\/g, '/')}`);
+                        if (!seen.has(uri)) {
+                            seen.add(uri);
+                            targets.push(uri);
+                        }
+                    }
+                } catch (e) {
+                    // Ignore invalid candidates
+                }
+            }
+        };
+
+        const importSpec = stripQuotes(spec);
+        if (importSpec.includes(':')) {
+            const segments = importSpec.split(':').filter(Boolean);
+            const rel = segments.join(path.sep);
+            for (const root of roots) {
+                tryPath(path.resolve(root, rel));
+                // Support register-module! pointing at module root while import
+                // includes the module name prefix (e.g. root ".../hyperon-openpsi"
+                // with import "hyperon-openpsi:main:...").
+                const rootBase = path.basename(root).toLowerCase();
+                if (segments.length > 1 && segments[0].toLowerCase() === rootBase) {
+                    tryPath(path.resolve(root, ...segments.slice(1)));
+                }
+            }
+        } else if (importSpec.includes('/') || importSpec.includes('\\') || importSpec.startsWith('.')) {
+            if (baseDir) tryPath(path.resolve(baseDir, importSpec));
+            for (const root of roots) {
+                tryPath(path.resolve(root, importSpec));
+            }
+        } else {
+            if (baseDir) tryPath(path.resolve(baseDir, importSpec));
+            for (const root of roots) {
+                tryPath(path.resolve(root, importSpec));
+            }
+        }
+
+        return targets;
+    }
+
+    getVisibleUris(sourceUri) {
+        const start = normalizeUri(sourceUri);
+        const visible = new Set([start]);
+        const queue = [start];
+
+        while (queue.length > 0) {
+            const uri = queue.shift();
+            const meta = this.moduleMeta.get(uri);
+            if (!meta) continue;
+
+            const roots = new Set([...(meta.registerRoots || []), ...this.globalModuleRoots]);
+            for (const spec of meta.imports || []) {
+                const targets = this.resolveImportTargets(spec, uri, roots);
+                for (const target of targets) {
+                    if (visible.has(target)) continue;
+                    visible.add(target);
+                    queue.push(target);
+                }
+            }
+        }
+
+        return visible;
+    }
+
+    getVisibleEntries(symbolName, sourceUri) {
+        const all = this.globalIndex.get(symbolName) || [];
+        const visibleUris = this.getVisibleUris(sourceUri);
+        return all.filter(entry => visibleUris.has(normalizeUri(entry.uri)));
     }
 
     async scanWorkspace(folders) {
@@ -557,6 +721,21 @@ class Analyzer {
             current = current.parent;
         }
         return false;
+    }
+}
+
+function stripQuotes(text) {
+    if (!text) return text;
+    if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+        return text.slice(1, -1);
+    }
+    return text;
+}
+
+function traverseTree(node, callback) {
+    callback(node);
+    for (let i = 0; i < node.childCount; i++) {
+        traverseTree(node.child(i), callback);
     }
 }
 
