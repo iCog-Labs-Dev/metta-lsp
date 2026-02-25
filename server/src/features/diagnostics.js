@@ -104,6 +104,8 @@ function validateTextDocument(document, analyzer) {
 
                         if (name.startsWith('$')) return;
 
+                        if (isInsideCaseBranches(node)) return;
+
                         let p = node.parent;
                         if (p && p.type === 'list') {
                             const pNamed = p.children.filter(c => c.type === 'atom' || c.type === 'list');
@@ -174,6 +176,7 @@ function validateTextDocument(document, analyzer) {
 
     traverseTree(tree.rootNode, (node) => {
         if (node.type !== 'list') return;
+        if (isInsideCaseBranches(node)) return;
 
         const namedChildren = node.children.filter(c => c.type === 'atom' || c.type === 'list');
         if (namedChildren.length === 0) return;
@@ -220,8 +223,50 @@ function validateTextDocument(document, analyzer) {
     return diagnostics;
 }
 
+function isCaseBranchHead(listNode) {
+    if (!listNode || listNode.type !== 'list') return false;
+
+    const parent = listNode.parent;
+    if (!parent || parent.type !== 'list') return false;
+
+    const parentNamed = parent.children.filter(c => c.type === 'atom' || c.type === 'list');
+    const listIndexInParent = parentNamed.indexOf(listNode);
+    if (listIndexInParent < 0) return false;
+
+    const caseCall = parent.parent;
+    if (!caseCall || caseCall.type !== 'list') return false;
+
+    const caseNamed = caseCall.children.filter(c => c.type === 'atom' || c.type === 'list');
+    if (caseNamed.length < 3) return false;
+
+    const caseHead = caseNamed[0];
+    if (caseHead.type !== 'atom' || caseHead.text !== 'case') return false;
+
+    // Branch list must be inside the third argument of case: (case <expr> (<branch> ...))
+    if (caseNamed[2] !== parent) return false;
+
+    return true;
+}
+
+function isInsideCaseBranches(node) {
+    let current = node;
+    while (current && current.parent) {
+        const maybeCaseCall = current.parent;
+        if (maybeCaseCall.type === 'list') {
+            const named = maybeCaseCall.children.filter(c => c.type === 'atom' || c.type === 'list');
+            if (named.length >= 3 && named[0].type === 'atom' && named[0].text === 'case') {
+                if (named[2] === current) {
+                    return true;
+                }
+            }
+        }
+        current = current.parent;
+    }
+    return false;
+}
+
 function validateCallTypeSignatures(rootNode, analyzer, diagnostics, builtinMeta, validOperators, boundSymbols) {
-    const nonCallableForms = new Set(['=', ':', '->', 'macro', 'defmacro', 'let', 'let*', 'match', 'case']);
+    const nonCallableForms = new Set(['=', ':', '->', 'macro', 'defmacro', 'let', 'let*', 'match', 'case', 'if']);
 
     traverseTree(rootNode, (node) => {
         if (node.type !== 'list') return;
@@ -238,7 +283,6 @@ function validateCallTypeSignatures(rootNode, analyzer, diagnostics, builtinMeta
         if (nonCallableForms.has(name)) return;
         if (name.startsWith('$')) return;
 
-        // Skip function name position inside definitions/types, e.g. (= (foo $x) ...)
         let p = node.parent;
         if (p && p.type === 'list') {
             const pNamed = p.children.filter(c => c.type === 'atom' || c.type === 'list');
