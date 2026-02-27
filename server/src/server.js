@@ -30,13 +30,35 @@ const documents = new TextDocuments(TextDocument);
 const analyzer = new Analyzer(connection);
 
 let hasWorkspaceFolderCapability = false;
+let hasConfigurationCapability = false;
 let workspaceFolders = [];
+const diagnosticSettings = {
+    undefinedFunctions: true,
+    undefinedVariables: true,
+    undefinedBindings: true
+};
+
+async function refreshDiagnosticSettings() {
+    if (!hasConfigurationCapability) return;
+
+    const config = await connection.workspace.getConfiguration('metta');
+    const diagnosticsConfig = config && typeof config.diagnostics === 'object'
+        ? config.diagnostics
+        : {};
+
+    diagnosticSettings.undefinedFunctions = diagnosticsConfig.undefinedFunctions !== false;
+    diagnosticSettings.undefinedVariables = diagnosticsConfig.undefinedVariables !== false;
+    diagnosticSettings.undefinedBindings = diagnosticsConfig.undefinedBindings !== false;
+}
 
 connection.onInitialize(async (params) => {
     const capabilities = params.capabilities;
 
     hasWorkspaceFolderCapability = !!(
         capabilities.workspace && !!capabilities.workspace.workspaceFolders
+    );
+    hasConfigurationCapability = !!(
+        capabilities.workspace && !!capabilities.workspace.configuration
     );
 
     connection.console.log('MeTTa LSP Server Initialized');
@@ -96,14 +118,24 @@ connection.onInitialized(() => {
     }
 });
 
+connection.onDidChangeConfiguration(async () => {
+    await refreshDiagnosticSettings();
+
+    for (const document of documents.all()) {
+        const diagnostics = validateTextDocument(document, analyzer, diagnosticSettings);
+        connection.sendDiagnostics({ uri: document.uri, diagnostics });
+    }
+});
+
 // Document changes
-documents.onDidChangeContent((change) => {
+documents.onDidChangeContent(async (change) => {
     const normalizedUri = normalizeUri(change.document.uri);
     const oldContent = analyzer.parseCache.get(normalizedUri)?.content || null;
     analyzer.indexFile(normalizedUri, change.document.getText());
     analyzer.getOrParseFile(normalizedUri, change.document.getText(), oldContent);
 
-    const diagnostics = validateTextDocument(change.document, analyzer);
+    await refreshDiagnosticSettings();
+    const diagnostics = validateTextDocument(change.document, analyzer, diagnosticSettings);
     connection.sendDiagnostics({ uri: change.document.uri, diagnostics });
 });
 

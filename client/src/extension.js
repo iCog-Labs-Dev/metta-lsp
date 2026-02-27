@@ -22,6 +22,7 @@ function activate(context) {
     const clientOptions = {
         documentSelector: [{ scheme: 'file', language: 'metta' }],
         synchronize: {
+            configurationSection: 'metta',
             fileEvents: workspace.createFileSystemWatcher('**/*.metta')
         }
     };

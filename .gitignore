@@ -6,3 +6,4 @@ dist/
 grammar/build/
 grammar/prebuilds/
 venv/
+test/

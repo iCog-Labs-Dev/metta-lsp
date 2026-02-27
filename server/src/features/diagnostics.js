@@ -1,6 +1,12 @@
 const { DiagnosticSeverity } = require('vscode-languageserver/node');
 
-function validateTextDocument(document, analyzer) {
+function validateTextDocument(document, analyzer, settings = {}) {
+    const diagnosticsSettings = {
+        undefinedFunctions: settings.undefinedFunctions !== false,
+        undefinedVariables: settings.undefinedVariables !== false,
+        undefinedBindings: settings.undefinedBindings !== false
+    };
+
     const text = document.getText();
     const sourceUri = document.uri;
     const tree = analyzer.parser.parse(text);
@@ -89,143 +95,149 @@ function validateTextDocument(document, analyzer) {
     const { BUILTIN_SYMBOLS, BUILTIN_META } = require('../utils');
     const validOperators = new Set(['=', ':', '->', 'macro', 'defmacro', '==', '~=', '+', '-', '*', '/', '>', '<', '>=', '<=']);
 
-    traverseTree(tree.rootNode, (node) => {
-        if (node.type === 'list') {
-            const namedChildren = node.children.filter(c => c.type === 'atom' || c.type === 'list');
-            if (namedChildren.length > 0) {
-                const head = namedChildren[0];
-                if (head.type === 'atom') {
-                    const symbolNode = head.children.find(c => c.type === 'symbol');
-                    if (symbolNode) {
-                        const name = symbolNode.text;
+    if (diagnosticsSettings.undefinedFunctions) {
+        traverseTree(tree.rootNode, (node) => {
+            if (node.type === 'list') {
+                const namedChildren = node.children.filter(c => c.type === 'atom' || c.type === 'list');
+                if (namedChildren.length > 0) {
+                    const head = namedChildren[0];
+                    if (head.type === 'atom') {
+                        const symbolNode = head.children.find(c => c.type === 'symbol');
+                        if (symbolNode) {
+                            const name = symbolNode.text;
 
-                        if (boundSymbols.has(name)) return;
+                            if (boundSymbols.has(name)) return;
 
-                        if (BUILTIN_SYMBOLS.has(name)) return;
+                            if (BUILTIN_SYMBOLS.has(name)) return;
 
-                        if (validOperators.has(name)) return;
+                            if (validOperators.has(name)) return;
 
-                        if (name.startsWith('$')) return;
+                            if (name.startsWith('$')) return;
 
-                        if (isInsideCaseBranches(node)) return;
+                            if (isInsideCaseBranches(node)) return;
 
-                        let p = node.parent;
-                        if (p && p.type === 'list') {
-                            const pNamed = p.children.filter(c => c.type === 'atom' || c.type === 'list');
-                            if (pNamed.length > 0 && pNamed[0].text === '=') {
-                                if (pNamed[1] === node) return;
+                            let p = node.parent;
+                            if (p && p.type === 'list') {
+                                const pNamed = p.children.filter(c => c.type === 'atom' || c.type === 'list');
+                                if (pNamed.length > 0 && pNamed[0].text === '=') {
+                                    if (pNamed[1] === node) return;
+                                }
                             }
-                        }
 
-                        let gp = node.parent;
-                        if (gp && gp.type === 'list') {
-                            const gpNamed = gp.children.filter(c => c.type === 'atom' || c.type === 'list');
-                            if (gpNamed.length > 0 && gpNamed[0].text === ':') {
-                                if (gpNamed[1] === head) return;
+                            let gp = node.parent;
+                            if (gp && gp.type === 'list') {
+                                const gpNamed = gp.children.filter(c => c.type === 'atom' || c.type === 'list');
+                                if (gpNamed.length > 0 && gpNamed[0].text === ':') {
+                                    if (gpNamed[1] === head) return;
+                                }
                             }
-                        }
 
-                        const definitions = analyzer.getVisibleEntries(name, sourceUri);
-                        if (!definitions || definitions.length === 0) {
-                            diagnostics.push({
-                                severity: DiagnosticSeverity.Error,
-                                range: {
-                                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
-                                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
-                                },
-                                message: `Undefined function '${name}'`,
-                                source: 'metta-lsp'
-                            });
-                        } else {
-                            const callArity = namedChildren.length - 1;
-                            const callableDefinitions = definitions.filter(d => d.op !== ':');
-                            const matchingDefinitions = callableDefinitions.filter(d => {
-                                const arity = getEntryArity(d);
-                                return arity === null || arity === callArity;
-                            });
-                            const concreteArities = Array.from(new Set(
-                                callableDefinitions
-                                    .map(getEntryArity)
-                                    .filter(a => a !== null)
-                            )).sort((a, b) => a - b);
-
-                            if (callableDefinitions.length > 0 && concreteArities.length > 0 && matchingDefinitions.length === 0) {
+                            const definitions = analyzer.getVisibleEntries(name, sourceUri);
+                            if (!definitions || definitions.length === 0) {
                                 diagnostics.push({
                                     severity: DiagnosticSeverity.Error,
                                     range: {
                                         start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
                                         end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
                                     },
-                                    message: `Argument count mismatch for '${name}': expected ${formatExpectedArities(concreteArities)}, got ${callArity}`,
+                                    message: `Undefined function '${name}'`,
                                     source: 'metta-lsp'
                                 });
-                            } else if (matchingDefinitions.length > 1 && !hasTypedOverloadForArity(name, callArity, analyzer, BUILTIN_META, sourceUri)) {
-                                diagnostics.push({
-                                    severity: DiagnosticSeverity.Warning,
-                                    range: {
-                                        start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
-                                        end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
-                                    },
-                                    message: `Ambiguous reference '${name}': ${matchingDefinitions.length} matching definitions for ${callArity} argument(s)`,
-                                    source: 'metta-lsp'
+                            } else {
+                                const callArity = namedChildren.length - 1;
+                                const callableDefinitions = definitions.filter(d => d.op !== ':');
+                                const matchingDefinitions = callableDefinitions.filter(d => {
+                                    const arity = getEntryArity(d);
+                                    return arity === null || arity === callArity;
                                 });
+                                const concreteArities = Array.from(new Set(
+                                    callableDefinitions
+                                        .map(getEntryArity)
+                                        .filter(a => a !== null)
+                                )).sort((a, b) => a - b);
+
+                                if (callableDefinitions.length > 0 && concreteArities.length > 0 && matchingDefinitions.length === 0) {
+                                    diagnostics.push({
+                                        severity: DiagnosticSeverity.Error,
+                                        range: {
+                                            start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                                            end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                                        },
+                                        message: `Argument count mismatch for '${name}': expected ${formatExpectedArities(concreteArities)}, got ${callArity}`,
+                                        source: 'metta-lsp'
+                                    });
+                                } else if (matchingDefinitions.length > 1 && !hasTypedOverloadForArity(name, callArity, analyzer, BUILTIN_META, sourceUri)) {
+                                    diagnostics.push({
+                                        severity: DiagnosticSeverity.Warning,
+                                        range: {
+                                            start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                                            end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                                        },
+                                        message: `Ambiguous reference '${name}': ${matchingDefinitions.length} matching definitions for ${callArity} argument(s)`,
+                                        source: 'metta-lsp'
+                                    });
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-    });
+        });
+    }
 
-    traverseTree(tree.rootNode, (node) => {
-        if (node.type !== 'list') return;
-        if (isInsideCaseBranches(node)) return;
+    if (diagnosticsSettings.undefinedBindings) {
+        traverseTree(tree.rootNode, (node) => {
+            if (node.type !== 'list') return;
+            if (isInsideCaseBranches(node)) return;
 
-        const namedChildren = node.children.filter(c => c.type === 'atom' || c.type === 'list');
-        if (namedChildren.length === 0) return;
+            const namedChildren = node.children.filter(c => c.type === 'atom' || c.type === 'list');
+            if (namedChildren.length === 0) return;
 
-        const head = namedChildren[0];
-        const headSymbolNode = head.type === 'atom' ? head.children.find(c => c.type === 'symbol') : null;
-        const headName = headSymbolNode ? headSymbolNode.text : null;
+            const head = namedChildren[0];
+            const headSymbolNode = head.type === 'atom' ? head.children.find(c => c.type === 'symbol') : null;
+            const headName = headSymbolNode ? headSymbolNode.text : null;
 
-        if (headName === 'import!' || headName === 'register-module!') {
-            return;
-        }
-
-        for (let i = 1; i < namedChildren.length; i++) {
-            const child = namedChildren[i];
-            if (child.type !== 'atom') continue;
-
-            const symbolNode = child.children.find(c => c.type === 'symbol');
-            if (!symbolNode) continue;
-
-            const name = symbolNode.text;
-            if (validOperators.has(name)) continue;
-            if (BUILTIN_SYMBOLS.has(name)) continue;
-            if (boundSymbols.has(name)) continue;
-
-            const definitions = analyzer.getVisibleEntries(name, sourceUri);
-            if (definitions && definitions.length > 0) continue;
-
-            if (headName === '=' || headName === ':' || headName === '->' || headName === 'macro' || headName === 'defmacro') {
-                if (i === 1) continue;
+            if (headName === 'import!' || headName === 'register-module!') {
+                return;
             }
 
-            diagnostics.push({
-                severity: DiagnosticSeverity.Error,
-                range: {
-                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
-                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
-                },
-                message: `Undefined binding variable or function '${name}'`,
-                source: 'metta-lsp'
-            });
-        }
-    });
+            for (let i = 1; i < namedChildren.length; i++) {
+                const child = namedChildren[i];
+                if (child.type !== 'atom') continue;
+
+                const symbolNode = child.children.find(c => c.type === 'symbol');
+                if (!symbolNode) continue;
+
+                const name = symbolNode.text;
+                if (validOperators.has(name)) continue;
+                if (BUILTIN_SYMBOLS.has(name)) continue;
+                if (boundSymbols.has(name)) continue;
+
+                const definitions = analyzer.getVisibleEntries(name, sourceUri);
+                if (definitions && definitions.length > 0) continue;
+
+                if (headName === '=' || headName === ':' || headName === '->' || headName === 'macro' || headName === 'defmacro') {
+                    if (i === 1) continue;
+                }
+
+                diagnostics.push({
+                    severity: DiagnosticSeverity.Error,
+                    range: {
+                        start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                        end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                    },
+                    message: `Undefined binding variable or function '${name}'`,
+                    source: 'metta-lsp'
+                });
+            }
+        });
+    }
 
     validateCallTypeSignatures(tree.rootNode, analyzer, diagnostics, BUILTIN_META, validOperators, boundSymbols, sourceUri);
 
-    validateUndefinedVariables(tree.rootNode, diagnostics);
+    if (diagnosticsSettings.undefinedVariables) {
+        validateUndefinedVariables(tree.rootNode, diagnostics);
+    }
 
     return diagnostics;
 }
