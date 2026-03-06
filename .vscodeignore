@@ -1,0 +1,10 @@
+**
+!dist/**
+!server/dist/**
+!server/src/**
+!grammar/**
+!client/language-configuration.json
+!package.json
+!metta-stdlib.json
+!LICENSE
+!node_modules/**

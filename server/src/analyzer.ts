@@ -1,0 +1,816 @@
+import Parser from 'tree-sitter';
+import Metta from '../../grammar';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import {
+    SymbolKind,
+    type Connection,
+    type Position,
+    type Range,
+    type WorkspaceFolder
+} from 'vscode-languageserver/node';
+import type { TextDocuments } from 'vscode-languageserver/node';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
+import { normalizeUri, uriToPath } from './utils';
+import type {
+    ModuleMeta,
+    ParseCacheEntry,
+    ReferenceLocation,
+    ScopeNode,
+    ScopeTree,
+    SymbolEntry
+} from './types';
+
+interface ScopeCandidate {
+    node: Parser.SyntaxNode;
+    startLine: number;
+    endLine: number;
+    id: string;
+}
+
+export default class Analyzer {
+    public readonly connection: Connection;
+    public readonly parser: Parser;
+    public readonly globalIndex: Map<string, SymbolEntry[]>;
+    public readonly parseCache: Map<string, ParseCacheEntry>;
+    private readonly scopeTrees: Map<string, ScopeTree>;
+    private readonly moduleMeta: Map<string, ModuleMeta>;
+    private readonly globalModuleRoots: Set<string>;
+    public symbolQuery: Parser.Query | null;
+    private scopeQuery: Parser.Query | null;
+    private usageQuery: Parser.Query | null;
+
+    constructor(connection: Connection) {
+        this.connection = connection;
+        this.parser = new Parser();
+        this.parser.setLanguage(Metta);
+
+        this.globalIndex = new Map();
+        this.parseCache = new Map();
+        this.scopeTrees = new Map();
+        this.moduleMeta = new Map();
+        this.globalModuleRoots = new Set();
+
+        this.symbolQuery = null;
+        this.scopeQuery = null;
+        this.usageQuery = null;
+
+        this.initializeQueries();
+    }
+
+    private initializeQueries(): void {
+        this.symbolQuery = this.loadQuery('definitions.scm');
+        this.scopeQuery = this.loadQuery('scopes.scm');
+        this.usageQuery = this.loadQuery('locals.scm');
+    }
+
+    private loadQuery(filename: string): Parser.Query {
+        const queryPath = path.resolve(__dirname, '../../grammar/queries/metta', filename);
+        try {
+            if (fs.existsSync(queryPath)) {
+                return new Parser.Query(Metta, fs.readFileSync(queryPath, 'utf8'));
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.connection.console.error(`Failed to load query ${filename}: ${message}`);
+        }
+        return new Parser.Query(Metta, '');
+    }
+
+    public detectSymbolKind(
+        nameNode: Parser.SyntaxNode,
+        opNode: Parser.SyntaxNode | null,
+        context: string
+    ): SymbolKind {
+        const op = opNode ? opNode.text : '=';
+        const name = nameNode.text;
+        const contextStr = context.toLowerCase();
+
+        if (op === ':') {
+            return SymbolKind.Interface;
+        }
+
+        if (op === '=') {
+            if (name.endsWith('?') || name.startsWith('is-') || name.startsWith('has-')) {
+                return SymbolKind.Boolean;
+            }
+            return SymbolKind.Function;
+        }
+
+        if (op === '->') {
+            return SymbolKind.Function;
+        }
+
+        if (contextStr.includes('macro') || contextStr.includes('defmacro')) {
+            return SymbolKind.Constant;
+        }
+
+        return SymbolKind.Function;
+    }
+
+    private buildScopeTree(uri: string, tree: Parser.Tree): ScopeTree {
+        const scopeTree: ScopeTree = new Map();
+        const rootScope: ScopeNode = {
+            parent: null,
+            children: [],
+            symbols: new Set(),
+            startLine: 0,
+            endLine: Number.POSITIVE_INFINITY,
+            nodeId: 'root'
+        };
+        scopeTree.set('root', rootScope);
+
+        if (!this.scopeQuery) return scopeTree;
+
+        const matches = this.scopeQuery.matches(tree.rootNode);
+        const scopes: ScopeCandidate[] = [];
+
+        for (const match of matches) {
+            const scopeNode = match.captures.find((capture) => capture.name === 'scope_node')?.node;
+            if (scopeNode) {
+                scopes.push({
+                    node: scopeNode,
+                    startLine: scopeNode.startPosition.row,
+                    endLine: scopeNode.endPosition.row,
+                    id: `${scopeNode.startPosition.row}:${scopeNode.startPosition.column}`
+                });
+            }
+        }
+
+        scopes.sort((a, b) => {
+            if (a.startLine !== b.startLine) return a.startLine - b.startLine;
+            return a.node.startPosition.column - b.node.startPosition.column;
+        });
+
+        const scopeStack: ScopeNode[] = [rootScope];
+
+        for (const scope of scopes) {
+            while (
+                scopeStack.length > 1 &&
+                scopeStack[scopeStack.length - 1].endLine < scope.startLine
+            ) {
+                scopeStack.pop();
+            }
+
+            const parent = scopeStack[scopeStack.length - 1];
+            const newScope: ScopeNode = {
+                parent,
+                children: [],
+                symbols: new Set(),
+                startLine: scope.startLine,
+                endLine: scope.endLine,
+                nodeId: scope.id
+            };
+
+            parent.children.push(newScope);
+            scopeTree.set(scope.id, newScope);
+            scopeStack.push(newScope);
+        }
+
+        if (this.symbolQuery) {
+            const symbolMatches = this.symbolQuery.matches(tree.rootNode);
+            for (const match of symbolMatches) {
+                const nameNode = match.captures.find((capture) => capture.name === 'name')?.node;
+                if (nameNode) {
+                    const symbolLine = nameNode.startPosition.row;
+                    const symbolName = nameNode.text;
+
+                    const containingScope = findScopeForLine(rootScope, symbolLine);
+                    if (containingScope) {
+                        containingScope.symbols.add(symbolName);
+                    }
+                }
+            }
+        }
+
+        this.scopeTrees.set(uri, scopeTree);
+        return scopeTree;
+    }
+
+    public getOrParseFile(uri: string, content: string, oldContent: string | null = null): ParseCacheEntry | null {
+        uri = normalizeUri(uri);
+        const filePath = uriToPath(uri);
+        if (!filePath) return null;
+
+        let stats: fs.Stats;
+        try {
+            stats = fs.statSync(filePath);
+        } catch {
+            return null;
+        }
+
+        const cached = this.parseCache.get(uri);
+        if (cached && oldContent !== null && cached.oldTree) {
+            // Placeholder for future incremental edits; currently full reparse is used.
+        }
+
+        if (cached && cached.timestamp >= stats.mtimeMs && cached.content === content) {
+            return cached;
+        }
+
+        const oldTree = cached?.tree ?? null;
+        const tree = this.parser.parse(content);
+        const usageIndex = new Map<string, Range[]>();
+
+        if (this.usageQuery) {
+            const matches = this.usageQuery.matches(tree.rootNode);
+            for (const match of matches) {
+                const symbolNode = match.captures.find((capture) => capture.name === 'symbol')?.node;
+                if (symbolNode) {
+                    const name = symbolNode.text;
+                    if (!usageIndex.has(name)) {
+                        usageIndex.set(name, []);
+                    }
+                    const ranges = usageIndex.get(name);
+                    if (ranges) {
+                        ranges.push({
+                            start: {
+                                line: symbolNode.startPosition.row,
+                                character: symbolNode.startPosition.column
+                            },
+                            end: {
+                                line: symbolNode.endPosition.row,
+                                character: symbolNode.endPosition.column
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        this.buildScopeTree(uri, tree);
+
+        const cacheEntry: ParseCacheEntry = {
+            tree,
+            content,
+            timestamp: stats.mtimeMs,
+            usageIndex,
+            oldTree
+        };
+
+        this.parseCache.set(uri, cacheEntry);
+        return cacheEntry;
+    }
+
+    public indexFile(uri: string, content: string): void {
+        uri = normalizeUri(uri);
+        const tree = this.parser.parse(content);
+
+        if (!this.symbolQuery) return;
+        const matches = this.symbolQuery.matches(tree.rootNode);
+
+        for (const [name, symbols] of this.globalIndex.entries()) {
+            const filtered = symbols.filter((symbol) => symbol.uri !== uri);
+            if (filtered.length === 0) {
+                this.globalIndex.delete(name);
+            } else {
+                this.globalIndex.set(name, filtered);
+            }
+        }
+
+        const validOps = new Set(['=', ':', '->', 'macro', 'defmacro']);
+        this.updateModuleMetadata(uri, tree, content);
+
+        for (const match of matches) {
+            const nameNode = match.captures.find((capture) => capture.name === 'name')?.node;
+            const opNode = match.captures.find((capture) => capture.name === 'op')?.node ?? null;
+            if (!nameNode) continue;
+
+            const opText = opNode ? opNode.text : '=';
+            if (opNode && !validOps.has(opText)) continue;
+
+            const name = nameNode.text;
+            const existing = this.globalIndex.get(name);
+            if (
+                existing &&
+                existing.some((entry) =>
+                    entry.uri === uri &&
+                    entry.range.start.line === nameNode.startPosition.row &&
+                    entry.range.start.character === nameNode.startPosition.column
+                )
+            ) {
+                continue;
+            }
+
+            let innerList: Parser.SyntaxNode | null = nameNode.parent;
+            while (innerList && innerList.type !== 'list') innerList = innerList.parent;
+            if (!innerList) continue;
+
+            let definitionNode: Parser.SyntaxNode | null = innerList;
+            if (opText === '=' || opText === ':' || opText === 'macro' || opText === 'defmacro') {
+                let outer: Parser.SyntaxNode | null = innerList.parent;
+                while (outer && outer.type !== 'list') outer = outer.parent;
+                if (outer) {
+                    definitionNode = outer;
+                    const namedArgs = definitionNode.children.filter(
+                        (child) => child.type === 'atom' || child.type === 'list'
+                    );
+                    if (namedArgs.indexOf(innerList) !== 1) continue;
+
+                    const isTopLevel =
+                        definitionNode.parent !== null &&
+                        definitionNode.parent.type === 'source_file';
+                    if (!isTopLevel) continue;
+                }
+            }
+
+            const context = definitionNode ? definitionNode.text : name;
+            const kind = this.detectSymbolKind(nameNode, opNode, context);
+
+            const description: string[] = [];
+            let prev: Parser.SyntaxNode | null = definitionNode?.previousSibling ?? null;
+            while (prev) {
+                if (prev.type === 'comment') {
+                    description.unshift(prev.text.replace(/^;+\s*/, '').trim());
+                } else if (prev.type === '\n' || prev.text.trim() === '') {
+                    // Skip whitespace and newline trivia.
+                } else {
+                    break;
+                }
+                prev = prev.previousSibling;
+            }
+
+            let parameters: string[] = [];
+            let typeSignature: string | null = null;
+
+            if (opText === '=') {
+                const listArgs = innerList.children.filter(
+                    (child) => child.type === 'atom' || child.type === 'list'
+                );
+                parameters = listArgs.slice(1).map((child) => child.text.trim());
+            } else if (opText === ':' && definitionNode) {
+                const args = definitionNode.children.filter(
+                    (child) => child.type === 'list' || child.type === 'atom'
+                );
+                if (args.length > 2) {
+                    typeSignature = args[2].text;
+                }
+            }
+
+            const entry: SymbolEntry = {
+                uri,
+                kind,
+                context,
+                op: opText,
+                description: description.length > 0 ? description.join('\n') : null,
+                parameters: parameters.length > 0 ? parameters : null,
+                typeSignature,
+                range: {
+                    start: {
+                        line: nameNode.startPosition.row,
+                        character: nameNode.startPosition.column
+                    },
+                    end: {
+                        line: nameNode.endPosition.row,
+                        character: nameNode.endPosition.column
+                    }
+                }
+            };
+
+            const existingEntries = this.globalIndex.get(name) ?? [];
+            existingEntries.push(entry);
+            this.globalIndex.set(name, existingEntries);
+        }
+    }
+
+    private updateModuleMetadata(uri: string, tree: Parser.Tree, content: string | null = null): void {
+        const oldMeta = this.moduleMeta.get(uri);
+        if (oldMeta) {
+            for (const root of oldMeta.registerRoots) {
+                this.globalModuleRoots.delete(root);
+            }
+        }
+
+        const imports = new Set<string>();
+        const registerRoots = new Set<string>();
+        const filePath = uriToPath(uri);
+        const fileDir = filePath ? path.dirname(filePath) : null;
+
+        if (typeof content === 'string') {
+            const registerRegex = /\(\s*register-module!\s+([^\s)]+)/g;
+            let regMatch: RegExpExecArray | null;
+            while ((regMatch = registerRegex.exec(content)) !== null) {
+                const raw = stripQuotes(regMatch[1].trim());
+                if (!raw || raw.startsWith('&') || !fileDir) continue;
+                const abs = path.isAbsolute(raw)
+                    ? path.resolve(path.normalize(raw))
+                    : path.resolve(fileDir, raw);
+                registerRoots.add(abs);
+            }
+
+            const importRegex = /\(\s*import!\s+([^)]+)\)/g;
+            let impMatch: RegExpExecArray | null;
+            while ((impMatch = importRegex.exec(content)) !== null) {
+                const tokens = impMatch[1]
+                    .split(/\s+/)
+                    .map((token) => token.trim())
+                    .filter(Boolean)
+                    .filter((token) => !token.startsWith('&'));
+                if (tokens.length === 0) continue;
+                imports.add(stripQuotes(tokens[tokens.length - 1]));
+            }
+        } else {
+            traverseTree(tree.rootNode, (node) => {
+                if (node.type !== 'list') return;
+                const named = node.children.filter((child) => child.type === 'atom' || child.type === 'list');
+                if (named.length === 0 || named[0].type !== 'atom') return;
+                const head = named[0].text;
+
+                if (head === 'import!') {
+                    const importArg = named
+                        .slice(1)
+                        .map((child) => child.text.trim())
+                        .filter((value) => value && !value.startsWith('&'))
+                        .pop();
+                    if (importArg) imports.add(stripQuotes(importArg));
+                }
+
+                if (head === 'register-module!') {
+                    for (const arg of named.slice(1)) {
+                        const raw = stripQuotes(arg.text.trim());
+                        if (!raw || raw.startsWith('&') || !fileDir) continue;
+                        const abs = path.isAbsolute(raw)
+                            ? path.resolve(path.normalize(raw))
+                            : path.resolve(fileDir, raw);
+                        registerRoots.add(abs);
+                    }
+                }
+            });
+        }
+
+        for (const root of registerRoots) {
+            this.globalModuleRoots.add(root);
+        }
+
+        this.moduleMeta.set(uri, {
+            imports: Array.from(imports),
+            registerRoots: Array.from(registerRoots)
+        });
+    }
+
+    private resolveImportTargets(spec: string, baseUri: string, roots: Iterable<string>): string[] {
+        if (!spec) return [];
+        const targets: string[] = [];
+        const seen = new Set<string>();
+        const basePath = uriToPath(baseUri);
+        const baseDir = basePath ? path.dirname(basePath) : null;
+
+        const tryPath = (candidate: string): void => {
+            if (!candidate) return;
+            const variants = [candidate];
+            if (!candidate.endsWith('.metta')) variants.push(`${candidate}.metta`);
+            variants.push(path.join(candidate, 'main.metta'));
+
+            for (const variant of variants) {
+                try {
+                    if (fs.existsSync(variant) && fs.statSync(variant).isFile()) {
+                        const uri = normalizeUri(`file:///${variant.replace(/\\/g, '/')}`);
+                        if (!seen.has(uri)) {
+                            seen.add(uri);
+                            targets.push(uri);
+                        }
+                    }
+                } catch {
+                    // Ignore invalid filesystem candidates.
+                }
+            }
+        };
+
+        const importSpec = stripQuotes(spec);
+        if (importSpec.includes(':')) {
+            const segments = importSpec.split(':').filter(Boolean);
+            const rel = segments.join(path.sep);
+            for (const root of roots) {
+                tryPath(path.resolve(root, rel));
+                const rootBase = path.basename(root).toLowerCase();
+                if (segments.length > 1 && segments[0].toLowerCase() === rootBase) {
+                    tryPath(path.resolve(root, ...segments.slice(1)));
+                }
+            }
+        } else if (importSpec.includes('/') || importSpec.includes('\\') || importSpec.startsWith('.')) {
+            if (baseDir) tryPath(path.resolve(baseDir, importSpec));
+            for (const root of roots) {
+                tryPath(path.resolve(root, importSpec));
+            }
+        } else {
+            if (baseDir) tryPath(path.resolve(baseDir, importSpec));
+            for (const root of roots) {
+                tryPath(path.resolve(root, importSpec));
+            }
+        }
+
+        return targets;
+    }
+
+    private getVisibleUris(sourceUri: string): Set<string> {
+        const start = normalizeUri(sourceUri);
+        const visible = new Set<string>([start]);
+        const queue: string[] = [start];
+
+        while (queue.length > 0) {
+            const uri = queue.shift();
+            if (!uri) continue;
+
+            const meta = this.moduleMeta.get(uri);
+            if (!meta) continue;
+
+            const roots = new Set<string>([...meta.registerRoots, ...this.globalModuleRoots]);
+            for (const spec of meta.imports) {
+                const targets = this.resolveImportTargets(spec, uri, roots);
+                for (const target of targets) {
+                    if (visible.has(target)) continue;
+                    visible.add(target);
+                    queue.push(target);
+                }
+            }
+        }
+
+        return visible;
+    }
+
+    public getVisibleEntries(symbolName: string, sourceUri: string): SymbolEntry[] {
+        const all = this.globalIndex.get(symbolName) ?? [];
+        const visibleUris = this.getVisibleUris(sourceUri);
+        return all.filter((entry) => visibleUris.has(normalizeUri(entry.uri)));
+    }
+
+    public async scanWorkspace(folders: WorkspaceFolder[]): Promise<void> {
+        for (const folder of folders) {
+            const rootPath = uriToPath(folder.uri);
+            if (!rootPath) continue;
+
+            this.connection.console.log(`Scanning workspace folder: ${rootPath}`);
+            this.crawlDirectory(rootPath);
+        }
+    }
+
+    public crawlDirectory(dir: string): void {
+        try {
+            const files = fs.readdirSync(dir);
+            for (const file of files) {
+                const fullPath = path.join(dir, file);
+                const stat = fs.statSync(fullPath);
+                if (stat.isDirectory()) {
+                    if (file !== 'node_modules' && file !== '.git' && file !== 'vscode-metta') {
+                        this.crawlDirectory(fullPath);
+                    }
+                } else if (file.endsWith('.metta')) {
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    const uri = normalizeUri(`file:///${fullPath.replace(/\\/g, '/')}`);
+                    this.indexFile(uri, content);
+                }
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.connection.console.error(`Error crawling directory ${dir}: ${message}`);
+        }
+    }
+
+    public findAllMettaFiles(dir: string, uriSet: Set<string>): void {
+        try {
+            const files = fs.readdirSync(dir);
+            for (const file of files) {
+                const fullPath = path.join(dir, file);
+                const stat = fs.statSync(fullPath);
+                if (stat.isDirectory()) {
+                    if (file !== 'node_modules' && file !== '.git' && file !== 'vscode-metta') {
+                        this.findAllMettaFiles(fullPath, uriSet);
+                    }
+                } else if (file.endsWith('.metta')) {
+                    const uri = normalizeUri(`file:///${fullPath.replace(/\\/g, '/')}`);
+                    uriSet.add(uri);
+                }
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.connection.console.error(`Error finding metta files in ${dir}: ${message}`);
+        }
+    }
+
+    public findAllReferences(
+        symbolName: string,
+        includeDeclaration = true,
+        sourceUri: string | null = null,
+        sourcePosition: Position | null = null,
+        documents: TextDocuments<TextDocument> | null = null,
+        workspaceFolders: WorkspaceFolder[] = []
+    ): ReferenceLocation[] {
+        const references: ReferenceLocation[] = [];
+        const seenKeys = new Set<string>();
+
+        const definitions = this.globalIndex.get(symbolName) ?? [];
+        if (includeDeclaration) {
+            for (const def of definitions) {
+                const normalizedDefUri = normalizeUri(def.uri);
+                const key = `${normalizedDefUri}:${def.range.start.line}:${def.range.start.character}`;
+                if (!seenKeys.has(key)) {
+                    seenKeys.add(key);
+                    references.push({ uri: normalizedDefUri, range: def.range });
+                }
+            }
+        }
+
+        const allUris = new Set<string>();
+        for (const def of definitions) {
+            allUris.add(def.uri);
+        }
+
+        for (const folder of workspaceFolders) {
+            const rootPath = uriToPath(folder.uri);
+            if (rootPath) {
+                this.findAllMettaFiles(rootPath, allUris);
+            }
+        }
+
+        for (const uri of allUris) {
+            const normalizedFileUri = normalizeUri(uri);
+            const filePath = uriToPath(normalizedFileUri);
+            if (!filePath || !fs.existsSync(filePath)) continue;
+
+            try {
+                const content = fs.readFileSync(filePath, 'utf8');
+                const cached = this.getOrParseFile(normalizedFileUri, content);
+                const ranges = cached?.usageIndex.get(symbolName);
+                if (!ranges) continue;
+
+                for (const range of ranges) {
+                    const key = `${normalizedFileUri}:${range.start.line}:${range.start.character}`;
+                    if (!seenKeys.has(key)) {
+                        seenKeys.add(key);
+                        references.push({ uri: normalizedFileUri, range });
+                    }
+                }
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                this.connection.console.error(`Error reading file ${filePath}: ${message}`);
+            }
+        }
+
+        if (documents) {
+            for (const document of documents.all()) {
+                const normalizedDocUri = normalizeUri(document.uri);
+                if (allUris.has(normalizedDocUri)) continue;
+
+                try {
+                    const content = document.getText();
+                    const cached = this.getOrParseFile(normalizedDocUri, content);
+                    const ranges = cached?.usageIndex.get(symbolName);
+                    if (!ranges) continue;
+
+                    for (const range of ranges) {
+                        const key = `${normalizedDocUri}:${range.start.line}:${range.start.character}`;
+                        if (!seenKeys.has(key)) {
+                            seenKeys.add(key);
+                            references.push({ uri: normalizedDocUri, range });
+                        }
+                    }
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    this.connection.console.error(`Error parsing document ${normalizedDocUri}: ${message}`);
+                }
+            }
+        }
+
+        if (sourceUri && sourcePosition && documents) {
+            const sourceDoc = documents.get(sourceUri);
+            if (sourceDoc) {
+                return references.filter((ref) => {
+                    if (ref.uri !== sourceUri) return true;
+
+                    const refDoc = documents.get(ref.uri) ?? sourceDoc;
+                    const refCached = this.getOrParseFile(ref.uri, refDoc.getText());
+                    const refTree = refCached ? refCached.tree : this.parser.parse(refDoc.getText());
+                    const refOffset = refDoc.offsetAt(ref.range.start);
+                    const refNode = refTree.rootNode.descendantForIndex(refOffset);
+
+                    if (refNode && this.isSymbolShadowed(refNode, symbolName, refTree, ref.uri)) {
+                        return false;
+                    }
+                    return true;
+                });
+            }
+        }
+
+        return references;
+    }
+
+    public isSymbolShadowed(
+        node: Parser.SyntaxNode,
+        symbolName: string,
+        _tree: Parser.Tree,
+        uri: string
+    ): boolean {
+        const scopeTree = this.scopeTrees.get(uri);
+        if (!scopeTree) {
+            return this.isSymbolShadowedBasic(node, symbolName, _tree);
+        }
+
+        const nodeLine = node.startPosition.row;
+        let containingScope = scopeTree.get('root');
+        if (!containingScope) return false;
+
+        const foundScope = findContainingScope(containingScope, nodeLine);
+        if (foundScope) {
+            containingScope = foundScope;
+        }
+
+        let currentScope: ScopeNode | null = containingScope;
+        while (currentScope) {
+            if (currentScope.symbols.has(symbolName)) {
+                const defs = this.globalIndex.get(symbolName) ?? [];
+                for (const def of defs) {
+                    if (def.uri === uri) {
+                        const defLine = def.range.start.line;
+                        if (
+                            defLine >= currentScope.startLine &&
+                            defLine <= currentScope.endLine &&
+                            defLine < nodeLine
+                        ) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            currentScope = currentScope.parent;
+        }
+
+        return false;
+    }
+
+    private isSymbolShadowedBasic(node: Parser.SyntaxNode, symbolName: string, _tree: Parser.Tree): boolean {
+        let current: Parser.SyntaxNode | null = node.parent;
+        while (current) {
+            if (current.type === 'list') {
+                const head = current.firstChild;
+                if (head && head.type === 'atom') {
+                    const headSymbol = head.firstChild;
+                    if (
+                        headSymbol &&
+                        (headSymbol.text === 'let' || headSymbol.text === 'let*' || headSymbol.text === 'match')
+                    ) {
+                        if (this.symbolQuery) {
+                            const scopeMatches = this.symbolQuery.matches(current);
+                            for (const match of scopeMatches) {
+                                const nameNode = match.captures.find((capture) => capture.name === 'name')?.node;
+                                if (nameNode && nameNode.text === symbolName) {
+                                    if (
+                                        nameNode.startPosition.row < node.startPosition.row ||
+                                        (
+                                            nameNode.startPosition.row === node.startPosition.row &&
+                                            nameNode.startPosition.column < node.startPosition.column
+                                        )
+                                    ) {
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            current = current.parent;
+        }
+        return false;
+    }
+}
+
+function stripQuotes(text: string): string {
+    if (
+        (text.startsWith('"') && text.endsWith('"')) ||
+        (text.startsWith('\'') && text.endsWith('\''))
+    ) {
+        return text.slice(1, -1);
+    }
+    return text;
+}
+
+function traverseTree(node: Parser.SyntaxNode, callback: (node: Parser.SyntaxNode) => void): void {
+    callback(node);
+    for (let i = 0; i < node.childCount; i++) {
+        const child = node.child(i);
+        if (child) traverseTree(child, callback);
+    }
+}
+
+function findScopeForLine(scope: ScopeNode, line: number): ScopeNode | null {
+    if (line < scope.startLine || line > scope.endLine) {
+        return null;
+    }
+
+    for (const child of scope.children) {
+        const found = findScopeForLine(child, line);
+        if (found) return found;
+    }
+
+    return scope;
+}
+
+function findContainingScope(scope: ScopeNode, line: number): ScopeNode | null {
+    for (const child of scope.children) {
+        if (line >= child.startLine && line <= child.endLine) {
+            const deeper = findContainingScope(child, line);
+            return deeper ?? child;
+        }
+    }
+    return null;
+}

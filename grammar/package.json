@@ -1,0 +1,55 @@
+{
+  "name": "tree-sitter-metta",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tree-sitter grammar for the MeTTa language",
+  "author": "",
+  "license": "MIT",
+  "main": "bindings/node/index.js",
+  "types": "bindings/node",
+  "keywords": [
+    "tree-sitter",
+    "metta",
+    "hyperon",
+    "language"
+  ],
+  "files": [
+    "grammar.js",
+    "binding.gyp",
+    "prebuilds/**",
+    "bindings/node/*",
+    "queries/*",
+    "src/**"
+  ],
+  "dependencies": {
+    "node-addon-api": "^7.1.0",
+    "node-gyp-build": "^4.8.0"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.21.0"
+  },
+  "peerDependenciesMeta": {
+    "tree_sitter": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "node-gyp": "^12.1.0",
+    "prebuildify": "^6.0.0",
+    "tree-sitter-cli": "^0.22.6"
+  },
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "generate-highlights": "node scripts/generate-highlights.js",
+    "build": "tree-sitter build",
+    "test": "tree-sitter test",
+    "install": "node-gyp-build",
+    "prebuildify": "prebuildify --napi --strip"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.metta",
+      "injection-regex": "^metta$"
+    }
+  ]
+}

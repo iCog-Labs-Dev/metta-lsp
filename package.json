@@ -1,5 +1,86 @@
 {
-  "dependencies": {
-    "tree": "^0.1.3"
-  }
+    "name": "metta-lsp",
+    "displayName": "MeTTa Language Support",
+    "description": "Full LSP support for the MeTTa language — syntax highlighting, diagnostics, go-to-definition, hover, completions, references, rename, and more.",
+    "version": "0.1.0",
+    "publisher": "metta-lang",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/iCog-Labs-Dev/MeTTa-LSP"
+    },
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.80.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Linters",
+        "Formatters"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "metta",
+                "aliases": [
+                    "MeTTa",
+                    "metta"
+                ],
+                "extensions": [
+                    ".metta"
+                ],
+                "configuration": "./client/language-configuration.json"
+            }
+        ],
+        "configuration": {
+            "title": "MeTTa",
+            "properties": {
+                "metta.diagnostics.undefinedFunctions": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable diagnostics for undefined functions."
+                },
+                "metta.diagnostics.undefinedVariables": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable diagnostics for undefined variables."
+                },
+                "metta.diagnostics.undefinedBindings": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable diagnostics for undefined binding variables or functions."
+                }
+            }
+        }
+    },
+    "scripts": {
+        "postinstall": "npm install --prefix grammar && npm install --prefix server",
+        "build": "npm run typecheck && npm run build:server && npm run build:client",
+        "build:client": "esbuild client/src/extension.ts --bundle --platform=node --external:vscode --outfile=dist/extension.js --minify",
+        "build:server": "node scripts/build-server.mjs",
+        "typecheck": "tsc --noEmit",
+        "watch": "esbuild client/src/extension.ts --bundle --platform=node --external:vscode --outfile=dist/extension.js --watch",
+        "server:start": "npm run build:server && npm run start --prefix server",
+        "grammar:generate": "npm run generate --prefix grammar",
+        "grammar:build": "npm run build --prefix grammar",
+        "grammar:test": "npm run test --prefix grammar",
+        "grammar:generate-highlights": "npm run generate-highlights --prefix grammar",
+        "package": "npm run build && vsce package --readme-path EXTENSION.md",
+        "vscode:prepublish": "npm run build"
+    },
+    "dependencies": {
+        "node-addon-api": "^8.5.0",
+        "node-gyp-build": "^4.8.4",
+        "tree-sitter": "^0.21.0",
+        "vscode-languageclient": "^9.0.1",
+        "vscode-languageserver": "^9.0.1",
+        "vscode-languageserver-textdocument": "^1.0.11"
+    },
+    "devDependencies": {
+        "@types/node": "^25.3.5",
+        "@types/vscode": "1.80.0",
+        "@vscode/vsce": "^3.3.2",
+        "esbuild": "^0.27.3",
+        "typescript": "^5.9.3"
+    }
 }

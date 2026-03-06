@@ -1,0 +1,40 @@
+{
+    "comments": {
+        "lineComment": ";"
+    },
+    "brackets": [
+        [
+            "(",
+            ")"
+        ]
+    ],
+    "colorizedBracketPairs": [],
+    "autoClosingPairs": [
+        [
+            "(",
+            ")"
+        ],
+        [
+            "\"",
+            "\""
+        ],
+        [
+            "'",
+            "'"
+        ]
+    ],
+    "surroundingPairs": [
+        [
+            "(",
+            ")"
+        ],
+        [
+            "\"",
+            "\""
+        ],
+        [
+            "'",
+            "'"
+        ]
+    ]
+}
