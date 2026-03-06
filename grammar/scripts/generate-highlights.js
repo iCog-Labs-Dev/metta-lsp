@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Regenerates keyword sections of highlights.scm from keywords.json.
+ * Regenerates keyword sections of highlights.scm from metta-stdlib.json.
  * Run via: npm run generate-highlights (from the grammar/ directory)
  *
  * Contract: highlights.scm must contain the region markers:
@@ -12,13 +12,22 @@
 const fs = require('fs');
 const path = require('path');
 
-const KEYWORDS_JSON = path.resolve(__dirname, '../../server/src/keywords.json');
+const STDLIB_JSON = path.resolve(__dirname, '../../metta-stdlib.json');
 const HIGHLIGHTS_SCM = path.resolve(__dirname, '../queries/metta/highlights.scm');
+const DEFAULT_KEYWORDS = ['if', 'let', 'let*', 'match', 'case', 'collapse', 'superpose'];
+const DEFAULT_CONSTANTS = ['True', 'False', 'Nil', 'empty', 'Cons', 'Error'];
 
-const KEYWORDS_JSON_DATA = JSON.parse(fs.readFileSync(KEYWORDS_JSON, 'utf8'));
-const keywords = KEYWORDS_JSON_DATA.classification?.keywords || [];
-const constants = KEYWORDS_JSON_DATA.classification?.constants || [];
-const builtinNames = Object.keys(KEYWORDS_JSON_DATA.builtins || {});
+const STDLIB_JSON_DATA = JSON.parse(fs.readFileSync(STDLIB_JSON, 'utf8'));
+const entries = Object.entries(STDLIB_JSON_DATA.builtins || {});
+const inferredKeywords = entries
+    .filter(([, data]) => data?.kind === 'keyword')
+    .map(([name]) => name);
+const inferredConstants = entries
+    .filter(([, data]) => data?.kind === 'constant')
+    .map(([name]) => name);
+const keywords = inferredKeywords.length > 0 ? inferredKeywords : DEFAULT_KEYWORDS;
+const constants = inferredConstants.length > 0 ? inferredConstants : DEFAULT_CONSTANTS;
+const builtinNames = entries.map(([name]) => name);
 const excluded = new Set([...keywords, ...constants]);
 const builtins = builtinNames.filter(name => !excluded.has(name));
 
@@ -27,9 +36,10 @@ function toAnyOf(values) {
 }
 
 function buildBlock(category, captures) {
-    const lines = captures.map(({ label, values }) =>
-        `((symbol) @${label}\n  (#any-of? @${label} ${toAnyOf(values)}))`
-    ).join('\n\n');
+    const lines = captures.map(({ label, values }) => {
+        if (!values.length) return '';
+        return `((symbol) @${label}\n  (#any-of? @${label} ${toAnyOf(values)}))`;
+    }).filter(Boolean).join('\n\n');
     return `; <<GENERATED:${category}>>\n${lines}\n; <</GENERATED:${category}>>`;
 }
 

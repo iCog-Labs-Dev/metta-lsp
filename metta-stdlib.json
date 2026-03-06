@@ -68,14 +68,14 @@
         }
       ]
     },
-    "(@kind atom)": {
+    "*": {
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Used for documentation purposes.",
-      "description": "Used for documentation purposes. Shows type of entity to be documented. (@kind atom) in this case## (@kind function) Type\nDocKindFunction",
+      "summary": "Multiplies two numbers",
+      "description": "Multiplies two numbers",
       "signatures": [
-        "(@kind atom) : DocKindAtom"
+        "* : (-> Number Number Number)"
       ],
       "params": [
         {
@@ -94,26 +94,26 @@
         "description": "Product"
       },
       "types": [
-        "DocKindAtom"
+        "(-> Number Number Number)"
       ],
       "examples": [
         {
-          "expr": "(@kind atom)",
-          "eval": "!(@kind atom)",
-          "result": "[(@kind atom)]"
+          "expr": "(* 10 3)",
+          "eval": "!(* 10 3)",
+          "result": "[30]"
         },
         {
-          "expr": "(chain (@kind atom) $x $x)",
-          "eval": "!(chain (@kind atom) $x $x)",
-          "result": "[(@kind atom)]"
+          "expr": "(* -9 4)",
+          "eval": "!(* -9 4)",
+          "result": "[-36]"
         }
       ],
       "errors": [],
-      "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#kind-atom",
+      "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/",
       "overloads": [
         {
-          "type": "DocKindAtom",
-          "signature": "(@kind atom) : DocKindAtom",
+          "type": "(-> Number Number Number)",
+          "signature": "* : (-> Number Number Number)",
           "params": [
             {
               "name": "$1",
@@ -130,8 +130,8 @@
             "type": "Number",
             "description": "Product"
           },
-          "description": "Used for documentation purposes. Shows type of entity to be documented. (@kind atom) in this case## (@kind function) Type\nDocKindFunction",
-          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#kind-atom"
+          "description": "Multiplies two numbers",
+          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/"
         }
       ]
     },
@@ -371,9 +371,9 @@
           "result": "[False]"
         },
         {
-          "expr": "(< 9 4)",
-          "eval": "!(< 9 4)",
-          "result": "[False]"
+          "expr": "(< -1 4)",
+          "eval": "!(< -1 4)",
+          "result": "[True]"
         }
       ],
       "errors": [],
@@ -438,9 +438,9 @@
           "result": "[False]"
         },
         {
-          "expr": "(<= 9 4)",
-          "eval": "!(<= 9 4)",
-          "result": "[False]"
+          "expr": "(<= 4 4)",
+          "eval": "!(<= 4 4)",
+          "result": "[True]"
         }
       ],
       "errors": [],
@@ -477,17 +477,17 @@
       "summary": "A symbol used to define reduction rules for expressions.",
       "description": "A symbol used to define reduction rules for expressions.",
       "signatures": [
-        "= : (-> $t#850654 $t#850654 %Undefined%)"
+        "= : (-> $t $t#850654 %Undefined%)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "$type#855013",
+          "type": "$t",
           "description": "Pattern to be matched against expression to be reduced"
         },
         {
           "name": "$2",
-          "type": "$type#855781",
+          "type": "$t",
           "description": "Result of reduction or transformation of the first pattern"
         }
       ],
@@ -496,7 +496,7 @@
         "description": "Not reduced itself unless custom equalities over equalities are added"
       },
       "types": [
-        "(-> $t#850654 $t#850654 %Undefined%)"
+        "(-> $t $t %Undefined%)"
       ],
       "examples": [
         {
@@ -544,26 +544,26 @@
       "summary": "Checks equality for two arguments of the same type",
       "description": "Checks equality for two arguments of the same type",
       "signatures": [
-        "== : (-> $t#36001 $t#36001 Bool)"
+        "== : (-> Atom Atom Bool)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "$type#40355",
+          "type": "Atom",
           "description": "First argument"
         },
         {
           "name": "$2",
-          "type": "$t#36001",
+          "type": "Atom",
           "description": "Second argument"
         }
       ],
       "returns": {
         "type": "Bool",
-        "description": "Returns True if two arguments are equal, False - otherwise. If arguments are of different type function returns Error currently"
+        "description": "Returns True if two arguments are equal, False - otherwise."
       },
       "types": [
-        "(-> $t#36001 $t#36001 Bool)"
+        "(-> Atom Atom Bool)"
       ],
       "examples": [
         {
@@ -572,17 +572,17 @@
           "result": "[False]"
         },
         {
-          "expr": "(== X Y)",
-          "eval": "!(== X Y)",
-          "result": "[False]"
+          "expr": "(== X X)",
+          "eval": "!(== X X)",
+          "result": "[True]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#_7",
       "overloads": [
         {
-          "type": "(-> $t#36001 $t#36001 Bool)",
-          "signature": "== : (-> $t#36001 $t#36001 Bool)",
+          "type": "(-> Atom Atom Bool)",
+          "signature": "== : (-> Atom Atom Bool)",
           "params": [
             {
               "name": "$1",
@@ -591,13 +591,13 @@
             },
             {
               "name": "$2",
-              "type": "$t#36001",
+              "type": "Atom",
               "description": "Second argument"
             }
           ],
           "returns": {
             "type": "Bool",
-            "description": "Returns True if two arguments are equal, False - otherwise. If arguments are of different type function returns Error currently"
+            "description": "Returns True if two arguments are equal, False - otherwise."
           },
           "description": "Checks equality for two arguments of the same type",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#_7"
@@ -639,9 +639,9 @@
           "result": "[False]"
         },
         {
-          "expr": "(=alpha X Y)",
-          "eval": "!(=alpha X Y)",
-          "result": "[False]"
+          "expr": "(=alpha X X)",
+          "eval": "!(=alpha X X)",
+          "result": "[True]"
         }
       ],
       "errors": [],
@@ -706,9 +706,9 @@
           "result": "[True]"
         },
         {
-          "expr": "(> 9 4)",
-          "eval": "!(> 9 4)",
-          "result": "[True]"
+          "expr": "(> 2 4)",
+          "eval": "!(> 2 4)",
+          "result": "[False]"
         }
       ],
       "errors": [],
@@ -773,9 +773,9 @@
           "result": "[True]"
         },
         {
-          "expr": "(>= 9 4)",
-          "eval": "!(>= 9 4)",
-          "result": "[True]"
+          "expr": "(>= 2 4)",
+          "eval": "!(>= 2 4)",
+          "result": "[False]"
         }
       ],
       "errors": [],
@@ -830,14 +830,12 @@
       ],
       "examples": [
         {
-          "expr": "(@desc \"hello\")",
-          "eval": "!(@desc \"hello\")",
-          "result": "[(@desc \"hello\")]"
+          "expr": "(@desc \"Returns its argument\")",
+          "result": "[(@desc \"Returns its argument\")]"
         },
         {
-          "expr": "(@desc \"world\")",
-          "eval": "!(@desc \"world\")",
-          "result": "[(@desc \"world\")]"
+          "expr": "(@desc \"Used for documentation purposes\")",
+          "result": "[(@desc \"Used for documentation purposes\")]"
         }
       ],
       "errors": [],
@@ -867,48 +865,48 @@
       "via_import": false,
       "kind": "function",
       "summary": "Used for documentation purposes.",
-      "description": "Used for documentation purposes. Function documentation starts with @doc",
+      "description": "Used for documentation purposes. Function documentation starts with @doc.",
       "signatures": [
+        "@doc : (-> Atom DocDescription DocInformal)",
         "@doc : (-> Atom DocDescription DocParameters DocReturnInformal DocInformal)"
       ],
       "params": [
         {
           "name": "$1",
           "type": "Atom",
-          "description": "Function name"
+          "description": "Function/atom name."
         },
         {
           "name": "$2",
           "type": "DocDescription",
-          "description": "Function description. Starts with @desc"
+          "description": "Description from @desc."
         },
         {
           "name": "$3",
           "type": "DocParameters",
-          "description": "(Optional) parameters description starting with @params which should contain one or more @param symbols"
+          "description": "(Optional) Parameters description via @params."
         },
         {
           "name": "$4",
           "type": "DocReturnInformal",
-          "description": "(Optional) description of what function will return. Starts with @return"
+          "description": "(Optional) Informal return description via @return."
         }
       ],
       "returns": {
         "type": "DocInformal",
-        "description": "Function documentation using @doc-formal"
+        "description": "Informal documentation expression."
       },
       "types": [
+        "(-> Atom DocDescription DocInformal)",
         "(-> Atom DocDescription DocParameters DocReturnInformal DocInformal)"
       ],
       "examples": [
         {
-          "expr": "(@doc foo (@desc \"d\") (@params ((@param \"x\"))) (@return \"r\"))",
-          "eval": "!(@doc foo (@desc \"d\") (@params ((@param \"x\"))) (@return \"r\"))",
-          "result": "[(@doc foo (@desc \"d\") (@params ((@param \"x\"))) (@return \"r\"))]"
+          "expr": "(@doc foo (@desc \"d\"))",
+          "result": "[(@doc foo (@desc \"d\"))]"
         },
         {
           "expr": "(@doc bar (@desc \"doc\") (@params ((@param \"v\"))) (@return \"out\"))",
-          "eval": "!(@doc bar (@desc \"doc\") (@params ((@param \"v\"))) (@return \"out\"))",
           "result": "[(@doc bar (@desc \"doc\") (@params ((@param \"v\"))) (@return \"out\"))]"
         }
       ],
@@ -916,35 +914,57 @@
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#doc",
       "overloads": [
         {
+          "type": "(-> Atom DocDescription DocInformal)",
+          "signature": "@doc : (-> Atom DocDescription DocInformal)",
+          "params": [
+            {
+              "name": "$1",
+              "type": "Atom",
+              "description": "Function/atom name."
+            },
+            {
+              "name": "$2",
+              "type": "DocDescription",
+              "description": "Description from @desc."
+            }
+          ],
+          "returns": {
+            "type": "DocInformal",
+            "description": "Informal documentation expression."
+          },
+          "description": "Minimal informal documentation form.",
+          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#doc"
+        },
+        {
           "type": "(-> Atom DocDescription DocParameters DocReturnInformal DocInformal)",
           "signature": "@doc : (-> Atom DocDescription DocParameters DocReturnInformal DocInformal)",
           "params": [
             {
               "name": "$1",
               "type": "Atom",
-              "description": "Function name"
+              "description": "Function/atom name."
             },
             {
               "name": "$2",
               "type": "DocDescription",
-              "description": "Function description. Starts with @desc"
+              "description": "Description from @desc."
             },
             {
               "name": "$3",
               "type": "DocParameters",
-              "description": "(Optional) parameters description starting with @params which should contain one or more @param symbols"
+              "description": "Parameters description via @params."
             },
             {
               "name": "$4",
               "type": "DocReturnInformal",
-              "description": "(Optional) description of what function will return. Starts with @return"
+              "description": "Informal return description via @return."
             }
           ],
           "returns": {
             "type": "DocInformal",
-            "description": "Function documentation using @doc-formal"
+            "description": "Informal documentation expression."
           },
-          "description": "Used for documentation purposes. Function documentation starts with @doc",
+          "description": "Full informal documentation form with params and return.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#doc"
         }
       ]
@@ -954,59 +974,61 @@
       "via_import": false,
       "kind": "function",
       "summary": "Used for documentation purposes.",
-      "description": "Used for documentation purposes. get-doc returns documentation starting with @doc-formal symbol. @doc-formal contains 6 or 4 parameters depending on the entity being described (functions being described using 6 parameters, atoms - 4 parameters)",
+      "description": "Used for documentation purposes. get-doc returns documentation starting with @doc-formal; forms vary by documented entity.",
       "signatures": [
-        "@doc-formal : (-> DocItem DocKindFunction DocType DocDescription DocParameters DocReturn DocFormal)"
+        "@doc-formal : (-> DocItem DocKindFunction DocType DocDescription DocParameters DocReturn DocFormal)",
+        "@doc-formal : (-> DocItem DocKindAtom DocType DocDescription DocFormal)",
+        "@doc-formal : (-> DocItem DocKindFunction DocType DocDescription DocFormal)"
       ],
       "params": [
         {
           "name": "$1",
           "type": "DocItem",
-          "description": "Function/Atom name for which documentation is to be displayed. Format (@item name)"
+          "description": "(@item name)"
         },
         {
           "name": "$2",
-          "type": "DocKindFunction",
-          "description": "Contains (@kind function) or (@kind atom) depends on entity which documentation is displayed"
+          "type": "DocKindFunction|DocKindAtom",
+          "description": "(@kind function) or (@kind atom)."
         },
         {
           "name": "$3",
           "type": "DocType",
-          "description": "Contains type notation of function/atom"
+          "description": "Type notation as documentation atom."
         },
         {
           "name": "$4",
           "type": "DocDescription",
-          "description": "Function/atom description"
+          "description": "Description atom."
         },
         {
           "name": "$5",
           "type": "DocParameters",
-          "description": "(Functions only). Description of function parameters"
+          "description": "(Optional) parameters description."
         },
         {
           "name": "$6",
           "type": "DocReturn",
-          "description": "(Functions only). Description of function's return value"
+          "description": "(Optional) return description."
         }
       ],
       "returns": {
         "type": "DocFormal",
-        "description": "Expression containing full documentation on function"
+        "description": "Formal documentation expression."
       },
       "types": [
-        "(-> DocItem DocKindFunction DocType DocDescription DocParameters DocReturn DocFormal)"
+        "(-> DocItem DocKindFunction DocType DocDescription DocParameters DocReturn DocFormal)",
+        "(-> DocItem DocKindAtom DocType DocDescription DocFormal)",
+        "(-> DocItem DocKindFunction DocType DocDescription DocFormal)"
       ],
       "examples": [
         {
           "expr": "(@doc-formal (@item foo) (@kind atom) (@type Atom) (@desc \"d\"))",
-          "eval": "!(@doc-formal (@item foo) (@kind atom) (@type Atom) (@desc \"d\"))",
           "result": "[(@doc-formal (@item foo) (@kind atom) (@type Atom) (@desc \"d\"))]"
         },
         {
-          "expr": "(@doc-formal (@item bar) (@kind atom) (@type Atom) (@desc \"doc\"))",
-          "eval": "!(@doc-formal (@item bar) (@kind atom) (@type Atom) (@desc \"doc\"))",
-          "result": "[(@doc-formal (@item bar) (@kind atom) (@type Atom) (@desc \"doc\"))]"
+          "expr": "(@doc-formal (@item id) (@kind function) (@type (-> Atom Atom)) (@desc \"Returns its argument\") (@params ((@param (@type Atom) (@desc \"Input argument\")))) (@return (@type Atom) (@desc \"Input argument\")))",
+          "result": "[(@doc-formal (@item id) (@kind function) (@type (-> Atom Atom)) (@desc \"Returns its argument\") (@params ((@param (@type Atom) (@desc \"Input argument\")))) (@return (@type Atom) (@desc \"Input argument\")))]"
         }
       ],
       "errors": [],
@@ -1015,43 +1037,34 @@
         {
           "type": "(-> DocItem DocKindFunction DocType DocDescription DocParameters DocReturn DocFormal)",
           "signature": "@doc-formal : (-> DocItem DocKindFunction DocType DocDescription DocParameters DocReturn DocFormal)",
-          "params": [
-            {
-              "name": "$1",
-              "type": "DocItem",
-              "description": "Function/Atom name for which documentation is to be displayed. Format (@item name)"
-            },
-            {
-              "name": "$2",
-              "type": "DocKindFunction",
-              "description": "Contains (@kind function) or (@kind atom) depends on entity which documentation is displayed"
-            },
-            {
-              "name": "$3",
-              "type": "DocType",
-              "description": "Contains type notation of function/atom"
-            },
-            {
-              "name": "$4",
-              "type": "DocDescription",
-              "description": "Function/atom description"
-            },
-            {
-              "name": "$5",
-              "type": "DocParameters",
-              "description": "(Functions only). Description of function parameters"
-            },
-            {
-              "name": "$6",
-              "type": "DocReturn",
-              "description": "(Functions only). Description of function's return value"
-            }
-          ],
+          "params": [],
           "returns": {
             "type": "DocFormal",
-            "description": "Expression containing full documentation on function"
+            "description": "Formal function documentation with params/return."
           },
-          "description": "Used for documentation purposes. get-doc returns documentation starting with @doc-formal symbol. @doc-formal contains 6 or 4 parameters depending on the entity being described (functions being described using 6 parameters, atoms - 4 parameters)",
+          "description": "Formal function documentation form.",
+          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#doc-formal"
+        },
+        {
+          "type": "(-> DocItem DocKindAtom DocType DocDescription DocFormal)",
+          "signature": "@doc-formal : (-> DocItem DocKindAtom DocType DocDescription DocFormal)",
+          "params": [],
+          "returns": {
+            "type": "DocFormal",
+            "description": "Formal atom documentation form."
+          },
+          "description": "Formal atom documentation form.",
+          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#doc-formal"
+        },
+        {
+          "type": "(-> DocItem DocKindFunction DocType DocDescription DocFormal)",
+          "signature": "@doc-formal : (-> DocItem DocKindFunction DocType DocDescription DocFormal)",
+          "params": [],
+          "returns": {
+            "type": "DocFormal",
+            "description": "Formal function documentation without params/return blocks."
+          },
+          "description": "Short formal function documentation form.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#doc-formal"
         }
       ]
@@ -1082,12 +1095,10 @@
       "examples": [
         {
           "expr": "(@item A)",
-          "eval": "!(@item A)",
           "result": "[(@item A)]"
         },
         {
           "expr": "(@item X)",
-          "eval": "!(@item X)",
           "result": "[(@item X)]"
         }
       ],
@@ -1140,14 +1151,12 @@
       ],
       "examples": [
         {
-          "expr": "(@param \"x\")",
-          "eval": "!(@param \"x\")",
-          "result": "[(@param \"x\")]"
+          "expr": "(@param \"Input argument\")",
+          "result": "[(@param \"Input argument\")]"
         },
         {
-          "expr": "(@param \"value\")",
-          "eval": "!(@param \"value\")",
-          "result": "[(@param \"value\")]"
+          "expr": "(@param (@type Atom) (@desc \"Input argument\"))",
+          "result": "[(@param (@type Atom) (@desc \"Input argument\"))]"
         }
       ],
       "errors": [],
@@ -1214,14 +1223,12 @@
       ],
       "examples": [
         {
-          "expr": "(@params (a b))",
-          "eval": "!(@params (a b))",
-          "result": "[(@params (a b))]"
+          "expr": "(@params ((@param \"x\") (@param \"y\")))",
+          "result": "[(@params ((@param \"x\") (@param \"y\")))]"
         },
         {
-          "expr": "(@params (x y))",
-          "eval": "!(@params (x y))",
-          "result": "[(@params (x y))]"
+          "expr": "(@params ((@param (@type Atom) (@desc \"Input\")) (@param (@type Number) (@desc \"Count\"))))",
+          "result": "[(@params ((@param (@type Atom) (@desc \"Input\")) (@param (@type Number) (@desc \"Count\"))))]"
         }
       ],
       "errors": [],
@@ -1273,14 +1280,12 @@
       ],
       "examples": [
         {
-          "expr": "(@return \"x\")",
-          "eval": "!(@return \"x\")",
-          "result": "[(@return \"x\")]"
+          "expr": "(@return \"Result value\")",
+          "result": "[(@return \"Result value\")]"
         },
         {
-          "expr": "(@return \"result\")",
-          "eval": "!(@return \"result\")",
-          "result": "[(@return \"result\")]"
+          "expr": "(@return (@type Atom) (@desc \"Result value\"))",
+          "result": "[(@return (@type Atom) (@desc \"Result value\"))]"
         }
       ],
       "errors": [],
@@ -1348,12 +1353,10 @@
       "examples": [
         {
           "expr": "(@type Atom)",
-          "eval": "!(@type Atom)",
           "result": "[(@type Atom)]"
         },
         {
           "expr": "(@type Number)",
-          "eval": "!(@type Number)",
           "result": "[(@type Number)]"
         }
       ],
@@ -1412,18 +1415,7 @@
       "types": [
         "(-> Number Type Type ErrorDescription)"
       ],
-      "examples": [
-        {
-          "expr": "(BadArgType 10 Atom Atom)",
-          "eval": "!(BadArgType 10 Atom Atom)",
-          "result": "[(BadArgType 10 Atom Atom)]"
-        },
-        {
-          "expr": "(BadArgType 9 Number Number)",
-          "eval": "!(BadArgType 9 Number Number)",
-          "result": "[(BadArgType 9 Number Number)]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#badargtype",
       "overloads": [
@@ -1484,18 +1476,7 @@
       "types": [
         "(-> Type Type ErrorDescription)"
       ],
-      "examples": [
-        {
-          "expr": "(BadType Atom Atom)",
-          "eval": "!(BadType Atom Atom)",
-          "result": "[(BadType Atom Atom)]"
-        },
-        {
-          "expr": "(BadType Number Number)",
-          "eval": "!(BadType Number Number)",
-          "result": "[(BadType Number Number)]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#badtype",
       "overloads": [
@@ -1551,18 +1532,7 @@
       "types": [
         "(-> Atom Atom ErrorType)"
       ],
-      "examples": [
-        {
-          "expr": "(Error A B)",
-          "eval": "!(Error A B)",
-          "result": "[(Error A B)]"
-        },
-        {
-          "expr": "(Error X Y)",
-          "eval": "!(Error X Y)",
-          "result": "[(Error X Y)]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#error",
       "overloads": [
@@ -1618,18 +1588,7 @@
       "types": [
         "Type"
       ],
-      "examples": [
-        {
-          "expr": "(ErrorType (a b) (a b))",
-          "eval": "!(ErrorType (a b) (a b))",
-          "result": "[(ErrorType (a b) (a b))]"
-        },
-        {
-          "expr": "(ErrorType (x y) (x y))",
-          "eval": "!(ErrorType (x y) (x y))",
-          "result": "[(ErrorType (x y) (x y))]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#errortype",
       "overloads": [
@@ -1687,8 +1646,8 @@
           "result": "[10]"
         },
         {
-          "expr": "(abs-math 9)",
-          "eval": "!(abs-math 9)",
+          "expr": "(abs-math -9)",
+          "eval": "!(abs-math -9)",
           "result": "[9]"
         }
       ],
@@ -1719,7 +1678,7 @@
       "via_import": false,
       "kind": "function",
       "summary": "Returns result of the arccosine function for an input value (first argument)",
-      "description": "Returns result of the arccosine function for an input value (first argument)",
+      "description": "Returns result of the arccosine function for an input value (first argument) in Radians",
       "signatures": [
         "acos-math : (-> Number Number)"
       ],
@@ -1727,7 +1686,7 @@
         {
           "name": "$1",
           "type": "Number",
-          "description": "Float number"
+          "description": "Float number, should be from 1 to -1"
         }
       ],
       "returns": {
@@ -1739,14 +1698,14 @@
       ],
       "examples": [
         {
-          "expr": "(acos-math 10)",
-          "eval": "!(acos-math 10)",
-          "result": "[NaN]"
+          "expr": "(acos-math 1)",
+          "eval": "!(acos-math 1)",
+          "result": "[0]"
         },
         {
-          "expr": "(acos-math 9)",
-          "eval": "!(acos-math 9)",
-          "result": "[NaN]"
+          "expr": "(acos-math 0)",
+          "eval": "!(acos-math 0)",
+          "result": "[1.5707963267948966]"
         }
       ],
       "errors": [],
@@ -1759,14 +1718,14 @@
             {
               "name": "$1",
               "type": "Number",
-              "description": "Float number"
+              "description": "Float number, should be from 1 to -1"
             }
           ],
           "returns": {
             "type": "Number",
             "description": "Result of the arccosine function"
           },
-          "description": "Returns result of the arccosine function for an input value (first argument)",
+          "description": "Returns result of the arccosine function for an input value (first argument) in radians",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#acos-math"
         }
       ]
@@ -2074,9 +2033,9 @@
           "result": "[False]"
         },
         {
-          "expr": "(and False True)",
-          "eval": "!(and False True)",
-          "result": "[False]"
+          "expr": "(and True True)",
+          "eval": "!(and True True)",
+          "result": "[True]"
         }
       ],
       "errors": [],
@@ -2110,8 +2069,8 @@
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Returns result of the arcsine function for an input value (first argument)",
-      "description": "Returns result of the arcsine function for an input value (first argument)",
+      "summary": "Returns result of the arcsine function for an input value (first argument) in radians",
+      "description": "Returns result of the arcsine function for an input value (first argument) in radians",
       "signatures": [
         "asin-math : (-> Number Number)"
       ],
@@ -2119,26 +2078,26 @@
         {
           "name": "$1",
           "type": "Number",
-          "description": "Float number"
+          "description": "Float number between 1 and -1"
         }
       ],
       "returns": {
         "type": "Number",
-        "description": "Result of the arcsine function"
+        "description": "Result of the arcsine function in radians"
       },
       "types": [
         "(-> Number Number)"
       ],
       "examples": [
         {
-          "expr": "(asin-math 10)",
-          "eval": "!(asin-math 10)",
-          "result": "[NaN]"
+          "expr": "(asin-math 1)",
+          "eval": "!(asin-math 1)",
+          "result": "[1.5707963267948966]"
         },
         {
-          "expr": "(asin-math 9)",
-          "eval": "!(asin-math 9)",
-          "result": "[NaN]"
+          "expr": "(asin-math 0)",
+          "eval": "!(asin-math 0)",
+          "result": "[0.0]"
         }
       ],
       "errors": [],
@@ -2151,7 +2110,7 @@
             {
               "name": "$1",
               "type": "Number",
-              "description": "Float number"
+              "description": "Float number between 1 and -1"
             }
           ],
           "returns": {
@@ -2265,14 +2224,14 @@
       ],
       "examples": [
         {
-          "expr": "(assertAlphaEqualMsg A A \"ok\")",
-          "eval": "!(assertAlphaEqualMsg A A \"ok\")",
+          "expr": "(assertAlphaEqualMsg A A (Error on test))",
+          "eval": "!(assertAlphaEqualMsg A A (Error on test))",
           "result": "[()]"
         },
         {
-          "expr": "(assertAlphaEqualMsg (f A) (f A) \"ok2\")",
-          "eval": "!(assertAlphaEqualMsg (f A) (f A) \"ok2\")",
-          "result": "[()]"
+          "expr": "(assertAlphaEqualMsg A B (Error on test))",
+          "eval": "!(assertAlphaEqualMsg A B (Error on test))",
+          "result": "[(Error (assertAlphaEqualMsg A B) (Error on test))]"
         }
       ],
       "errors": [],
@@ -2342,9 +2301,9 @@
           "result": "[()]"
         },
         {
-          "expr": "(assertAlphaEqualToResult (f A) ((f A)))",
-          "eval": "!(assertAlphaEqualToResult (f A) ((f A)))",
-          "result": "[()]"
+          "expr": "(assertAlphaEqualToResult (3) (+ 1 2))",
+          "eval": "!(assertAlphaEqualToResult (3) (+ 1 2))",
+          "result": "[(Error (assertAlphaEqualToResult (3) (+ 1 2)) \"\nExpected: [+, 1, 2]\nGot: [(3)]\nMissed results: +, 1, 2\nExcessive results: (3)\")]"
         }
       ],
       "errors": [],
@@ -2409,14 +2368,14 @@
       ],
       "examples": [
         {
-          "expr": "(assertAlphaEqualToResultMsg A (A) \"ok\")",
-          "eval": "!(assertAlphaEqualToResultMsg A (A) \"ok\")",
+          "expr": "(assertAlphaEqualToResultMsg A (A) (Error on test))",
+          "eval": "!(assertAlphaEqualToResultMsg A (A) (Error on test))",
           "result": "[()]"
         },
         {
-          "expr": "(assertAlphaEqualToResultMsg (f A) ((f A)) \"ok2\")",
-          "eval": "!(assertAlphaEqualToResultMsg (f A) ((f A)) \"ok2\")",
-          "result": "[()]"
+          "expr": "(assertAlphaEqualToResultMsg (3) (+ 1 2) (Error on test))",
+          "eval": "!(assertAlphaEqualToResultMsg (3) (+ 1 2) (Error on test))",
+          "result": "[(Error (assertAlphaEqualToResultMsg (3) (+ 1 2)) (Error on test))]"
         }
       ],
       "errors": [],
@@ -2553,14 +2512,14 @@
       ],
       "examples": [
         {
-          "expr": "(assertEqualMsg A A \"ok\")",
-          "eval": "!(assertEqualMsg A A \"ok\")",
+          "expr": "(assertEqualMsg A A (Error on test))",
+          "eval": "!(assertEqualMsg A A (Error on test))",
           "result": "[()]"
         },
         {
-          "expr": "(assertEqualMsg (f A) (f A) \"ok2\")",
-          "eval": "!(assertEqualMsg (f A) (f A) \"ok2\")",
-          "result": "[()]"
+          "expr": "(assertEqualMsg (f A) (f B) (Error on test))",
+          "eval": "!(assertEqualMsg (f A) (f B) (Error on test))",
+          "result": "[(Error (assertEqualMsg (f A) (f B)) (Error on test))]"
         }
       ],
       "errors": [],
@@ -2630,9 +2589,9 @@
           "result": "[()]"
         },
         {
-          "expr": "(assertEqualToResult (f A) ((f A)))",
-          "eval": "!(assertEqualToResult (f A) ((f A)))",
-          "result": "[()]"
+          "expr": "(assertAlphaEqualToResult (3) (+ 1 2))",
+          "eval": "!(assertAlphaEqualToResult (3) (+ 1 2))",
+          "result": "[(Error (assertAlphaEqualToResult (3) (+ 1 2)) \"\nExpected: [+, 1, 2]\nGot: [(3)]\nMissed results: +, 1, 2\nExcessive results: (3)\")]"
         }
       ],
       "errors": [],
@@ -2697,14 +2656,14 @@
       ],
       "examples": [
         {
-          "expr": "(assertEqualToResultMsg A (A) \"ok\")",
-          "eval": "!(assertEqualToResultMsg A (A) \"ok\")",
+          "expr": "(assertEqualToResultMsg A (A) (Error on test))",
+          "eval": "!(assertEqualToResultMsg A (A) (Error on test))",
           "result": "[()]"
         },
         {
-          "expr": "(assertEqualToResultMsg (f A) ((f A)) \"ok2\")",
-          "eval": "!(assertEqualToResultMsg (f A) ((f A)) \"ok2\")",
-          "result": "[()]"
+          "expr": "(assertEqualToResultMsg (3) (+ 1 2) (Error on test))",
+          "eval": "!(assertEqualToResultMsg (3) (+ 1 2) (Error on test))",
+          "result": "[(Error (assertEqualToResultMsg (3) (+ 1 2)) (Error on test))]"
         }
       ],
       "errors": [],
@@ -2774,9 +2733,9 @@
           "result": "[()]"
         },
         {
-          "expr": "(assertIncludes A (a b))",
-          "eval": "!(assertIncludes A (a b))",
-          "result": "[(Error (assertIncludes A (a b)) (assertIncludes error: (a b) not included in result: (A)))]"
+          "expr": "(assertIncludes (a b) (a))",
+          "eval": "!(assertIncludes (a b) (a))",
+          "result": "[(Error (assertIncludes (a b) (a)) (assertIncludes error: (a) not included in result: ((a b))))]"
         }
       ],
       "errors": [],
@@ -2968,18 +2927,7 @@
       "types": [
         "(-> Symbol %Undefined% (->))"
       ],
-      "examples": [
-        {
-          "expr": "(bind! A B)",
-          "eval": "!(bind! A B)",
-          "result": "[()]"
-        },
-        {
-          "expr": "(bind! X Y)",
-          "eval": "!(bind! X Y)",
-          "result": "[()]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#bind",
       "overloads": [
@@ -3151,14 +3099,14 @@
       ],
       "examples": [
         {
-          "expr": "(case A (a b))",
-          "eval": "!(case A (a b))",
-          "result": "[]"
+          "expr": "(case 6 ((5 (yes)) (6 (No))))",
+          "eval": "!(case 6 ((5 (yes)) (6 (No))))",
+          "result": "[(No)]"
         },
         {
-          "expr": "(case X (x y))",
-          "eval": "!(case X (x y))",
-          "result": "[]"
+          "expr": "(case 5 ((5 (yes)) (6 (No))))",
+          "eval": "!(case 5 ((5 (yes)) (6 (No))))",
+          "result": "[(yes)]"
         }
       ],
       "errors": [],
@@ -3275,9 +3223,9 @@
           "result": "[10]"
         },
         {
-          "expr": "(ceil-math 9)",
-          "eval": "!(ceil-math 9)",
-          "result": "[9]"
+          "expr": "(ceil-math 9.5)",
+          "eval": "!(ceil-math 9.5)",
+          "result": "[10]"
         }
       ],
       "errors": [],
@@ -3337,14 +3285,14 @@
       ],
       "examples": [
         {
-          "expr": "(chain A $y C)",
-          "eval": "!(chain A $y C)",
-          "result": "[C]"
+          "expr": "(chain 5 $y (+ 1 $y))",
+          "eval": "!(chain 5 $y (+ 1 $y))",
+          "result": "[6]"
         },
         {
-          "expr": "(chain X $v2 Z)",
-          "eval": "!(chain X $v2 Z)",
-          "result": "[Z]"
+          "expr": "(chain 3 $x (chain (* $x 2) $z (+ $z 1)))",
+          "eval": "!(chain 3 $x (chain (* $x 2) $z (+ $z 1)))",
+          "result": "[7]"
         }
       ],
       "errors": [],
@@ -3391,21 +3339,21 @@
       "params": [
         {
           "name": "$1",
-          "type": "(StateMonad $tcso#259338)",
+          "type": "(StateMonad $t)",
           "description": "State created by new-state function"
         },
         {
           "name": "$2",
-          "type": "$tcso#259338",
+          "type": "$t",
           "description": "Atom which will replace wrapped atom in the input state"
         }
       ],
       "returns": {
-        "type": "(StateMonad $tcso#259338)",
+        "type": "(StateMonad $t)",
         "description": "State with replaced wrapped atom"
       },
       "types": [
-        "(-> (StateMonad $tcso#259338) $tcso#259338 (StateMonad $tcso#259338))"
+        "(-> (StateMonad $t) $x (StateMonad $x))"
       ],
       "examples": [
         {
@@ -3423,22 +3371,22 @@
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#change-state",
       "overloads": [
         {
-          "type": "(-> (StateMonad $tcso#259338) $tcso#259338 (StateMonad $tcso#259338))",
-          "signature": "change-state! : (-> (StateMonad $tcso#259338) $tcso#259338 (StateMonad $tcso#259338))",
+          "type": "(-> (StateMonad $t) $x (StateMonad $x))",
+          "signature": "change-state! : (-> (StateMonad $t) $x (StateMonad $x))",
           "params": [
             {
               "name": "$1",
-              "type": "(StateMonad $tcso#259338)",
+              "type": "(StateMonad $t)",
               "description": "State created by new-state function"
             },
             {
               "name": "$2",
-              "type": "$tcso#259338",
+              "type": "$t",
               "description": "Atom which will replace wrapped atom in the input state"
             }
           ],
           "returns": {
-            "type": "(StateMonad $tcso#259338)",
+            "type": "(StateMonad $t)",
             "description": "State with replaced wrapped atom"
           },
           "description": "Changes input state's wrapped atom to another value (second argument). E.g. (change-state! (State 5) 6) -> (State 6)",
@@ -3471,14 +3419,14 @@
       ],
       "examples": [
         {
-          "expr": "(collapse A)",
-          "eval": "!(collapse A)",
-          "result": "[(A)]"
+          "expr": "(collapse (superpose (A B C)))",
+          "eval": "!(collapse (superpose (A B C)))",
+          "result": "[(A B C)]"
         },
         {
-          "expr": "(collapse X)",
-          "eval": "!(collapse X)",
-          "result": "[(X)]"
+          "expr": "(collapse (superpose ((+ 1 2) (* 2 3))))",
+          "eval": "!(collapse (superpose ((+ 1 2) (* 2 3))))",
+          "result": "[(3 6)]"
         }
       ],
       "errors": [],
@@ -3533,9 +3481,9 @@
           "result": "[((A {  }))]"
         },
         {
-          "expr": "(collapse-bind X)",
-          "eval": "!(collapse-bind X)",
-          "result": "[((X {  }))]"
+          "expr": "(collapse-bind (superpose (A B)))",
+          "eval": "!(collapse-bind (superpose (A B))) ",
+          "result": "[((B {  })), ((A {  }))]"
         }
       ],
       "errors": [],
@@ -3648,11 +3596,6 @@
         {
           "expr": "(context-space)",
           "eval": "!(context-space)",
-          "result": "[ModuleSpace(GroundingSpace-top)]"
-        },
-        {
-          "expr": "(chain (context-space) $x $x)",
-          "eval": "!(chain (context-space) $x $x)",
           "result": "[ModuleSpace(GroundingSpace-top)]"
         }
       ],
@@ -3803,18 +3746,7 @@
       "types": [
         "%Undefined%"
       ],
-      "examples": [
-        {
-          "expr": "(empty)",
-          "eval": "!(empty)",
-          "result": "[]"
-        },
-        {
-          "expr": "(chain (empty) $x $x)",
-          "eval": "!(chain (empty) $x $x)",
-          "result": "[]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#empty",
       "overloads": [
@@ -3856,14 +3788,14 @@
       ],
       "examples": [
         {
-          "expr": "(eval A)",
-          "eval": "!(eval A)",
-          "result": "[(eval A)]"
+          "expr": "(eval (+ 5 5))",
+          "eval": "!(eval (+ 5 5))",
+          "result": "[10]"
         },
         {
-          "expr": "(eval X)",
-          "eval": "!(eval X)",
-          "result": "[(eval X)]"
+          "expr": "(= (double $x) (+ $x $x))\n(eval (double 5))",
+          "eval": "(= (double $x) (+ $x $x))\n!(eval (double 5))",
+          "result": "[(+ 5 5)]"
         }
       ],
       "errors": [],
@@ -3918,14 +3850,14 @@
       ],
       "examples": [
         {
-          "expr": "(evalc A &self)",
-          "eval": "!(evalc A &self)",
-          "result": "[(evalc A ModuleSpace(GroundingSpace-top))]"
+          "expr": "(evalc (+ 5 5) &self)",
+          "eval": "!(evalc (+ 5 5) &self)",
+          "result": "[10]"
         },
         {
-          "expr": "(evalc X &self)",
-          "eval": "!(evalc X &self)",
-          "result": "[(evalc X ModuleSpace(GroundingSpace-top))]"
+          "expr": "(= (double $x) (+ $x $x))\n(evalc (double 5) &self)",
+          "eval": "(= (double $x) (+ $x $x))\n!(evalc (double 5) &self)",
+          "result": "[(+ 5 5)]"
         }
       ],
       "errors": [],
@@ -3995,9 +3927,9 @@
           "result": "[(3 4)]"
         },
         {
-          "expr": "(filter-atom (a b) $y C)",
-          "eval": "!(filter-atom (a b) $y C)",
-          "result": "[(Error (filter-atom (a b) $y C) NoReturn)]"
+          "expr": "(filter-atom (1 2 3 4) $v (eval (<= $v 2)))",
+          "eval": "!(filter-atom (1 2 3 4) $v (eval (<= $v 2)))",
+          "result": "[(1 2)]"
         }
       ],
       "errors": [],
@@ -4057,14 +3989,14 @@
       ],
       "examples": [
         {
-          "expr": "(first-from-pair (decons-atom (a b)))",
-          "eval": "!(first-from-pair (decons-atom (a b)))",
+          "expr": "(first-from-pair (a b))",
+          "eval": "!(first-from-pair (a b))",
           "result": "[a]"
         },
         {
-          "expr": "(first-from-pair (Cons A B))",
-          "eval": "!(first-from-pair (Cons A B))",
-          "result": "[(Error (first-from-pair (Cons A B)) \"incorrect pair format\")]"
+          "expr": "(first-from-pair (A B))",
+          "eval": "!(first-from-pair (A B))",
+          "result": "[A]"
         }
       ],
       "errors": [],
@@ -4119,9 +4051,9 @@
           "result": "[10]"
         },
         {
-          "expr": "(floor-math 9)",
-          "eval": "!(floor-math 9)",
-          "result": "[9]"
+          "expr": "(floor-math 9.5)",
+          "eval": "!(floor-math 9.5)",
+          "result": "[9.0]"
         }
       ],
       "errors": [],
@@ -4191,14 +4123,14 @@
       ],
       "examples": [
         {
-          "expr": "(foldl-atom (a b) B $x $y A)",
-          "eval": "!(foldl-atom (a b) B $x $y A)",
-          "result": "[A]"
+          "expr": "(foldl-atom (2 4 5 1) 1 $acc $x (* $acc $x))",
+          "eval": "!(foldl-atom (2 4 5 1) 1 $acc $x (* $acc $x))",
+          "result": "[40]"
         },
         {
-          "expr": "(foldl-atom (x y) Y $v1 $v2 X)",
-          "eval": "!(foldl-atom (x y) Y $v1 $v2 X)",
-          "result": "[X]"
+          "expr": "(foldl-atom (2 4 5 1) 0 $acc $x (+ $acc $x))",
+          "eval": "!(foldl-atom (2 4 5 1) 0 $acc $x (+ $acc $x))",
+          "result": "[12]"
         }
       ],
       "errors": [],
@@ -4273,13 +4205,13 @@
       ],
       "examples": [
         {
-          "expr": "(for-each-in-atom (a b) B)",
-          "eval": "!(for-each-in-atom (a b) B)",
+          "expr": "(for-each-in-atom (1 3 5 62 2 5) println!)",
+          "eval": "!(for-each-in-atom (1 3 5 62 2 5) println!)",
           "result": "[()]"
         },
         {
-          "expr": "(for-each-in-atom (x y) Y)",
-          "eval": "!(for-each-in-atom (x y) Y)",
+          "expr": "(for-each-in-atom ((+ 1 2) (* 2 3) (- 8 1)) println!)",
+          "eval": "!(for-each-in-atom ((+ 1 2) (* 2 3) (- 8 1)) println!)",
           "result": "[()]"
         }
       ],
@@ -4315,7 +4247,7 @@
       "via_import": false,
       "kind": "function",
       "summary": "Fills {} symbols in the input expression with atoms from the second expression.",
-      "description": "Fills {} symbols in the input expression with atoms from the second expression. E.g. (format-args (Probability of {} is {}%) (head 50)) gives [(Probability of head is 50%)]. Atoms in the second input value could be variables",
+      "description": "Fills {} placeholders in a format string using atoms from the second expression. Example: (format-args \"Probability of {} is {}%\" (head 50)) returns \"Probability of head is 50%\". Atoms in the second input value can be variables or expressions.",
       "signatures": [
         "format-args : (-> String Expression String)"
       ],
@@ -4340,14 +4272,14 @@
       ],
       "examples": [
         {
-          "expr": "(format-args \"hello\" (a b))",
-          "eval": "!(format-args \"hello\" (a b))",
-          "result": "[\"hello\"]"
+          "expr": "(format-args \"Probability of {} is {}%\" (head 50))",
+          "eval": "!(format-args \"Probability of {} is {}%\" (head 50))",
+          "result": "[\"Probability of head is 50%\"]"
         },
         {
-          "expr": "(format-args \"world\" (x y))",
-          "eval": "!(format-args \"world\" (x y))",
-          "result": "[\"world\"]"
+          "expr": "(format-args \" {} {}\" ((type Number) \"input number\"))",
+          "eval": "!(format-args \" {} {}\" ((type Number) \"input number\"))",
+          "result": "[\" (type Number) input number\"]"
         }
       ],
       "errors": [],
@@ -4372,7 +4304,7 @@
             "type": "String",
             "description": "Expression with replaced {} with atoms"
           },
-          "description": "Fills {} symbols in the input expression with atoms from the second expression. E.g. (format-args (Probability of {} is {}%) (head 50)) gives [(Probability of head is 50%)]. Atoms in the second input value could be variables",
+          "description": "Fills {} placeholders in a format string using atoms from the second expression. Example: (format-args \"Probability of {} is {}%\" (head 50)) returns \"Probability of head is 50%\". Atoms in the second input value can be variables or expressions.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#format-args"
         }
       ]
@@ -4381,8 +4313,8 @@
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Evaluates the argument until it becomes (return ).",
-      "description": "Evaluates the argument until it becomes (return ). Then (function (return )) is reduced to the .",
+      "summary": "Evaluates the argument until it becomes (return <result>).",
+      "description": "Evaluates the argument until it becomes (return <result>). Then (function (return <result>)) is reduced to <result>.",
       "signatures": [
         "function : (-> Atom Atom)"
       ],
@@ -4407,9 +4339,9 @@
           "result": "[A]"
         },
         {
-          "expr": "(function (if True (return A) B))",
-          "eval": "!(function (if True (return A) B))",
-          "result": "[$result#17]"
+          "expr": "(function (eval (if False (return A) (return B))))",
+          "eval": "!(function (eval (if False (return A) (return B))))",
+          "result": "[B]"
         }
       ],
       "errors": [],
@@ -4429,7 +4361,7 @@
             "type": "Atom",
             "description": "Result of atom's evaluation"
           },
-          "description": "Evaluates the argument until it becomes (return ). Then (function (return )) is reduced to the .",
+          "description": "Evaluates the argument until it becomes (return <result>). Then (function (return <result>)) is reduced to <result>.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#function"
         }
       ]
@@ -4459,14 +4391,14 @@
       ],
       "examples": [
         {
-          "expr": "(get-atoms &self)",
-          "eval": "!(get-atoms &self)",
-          "result": "[]"
+          "expr": "(add-atom &self Red)\n(add-atom &self Blue)\n(get-atoms &self)",
+          "eval": "!(add-atom &self Red)\n!(add-atom &self Blue)\n!(get-atoms &self)",
+          "result": "[Red, Blue]"
         },
         {
-          "expr": "(get-atoms (new-space))",
-          "eval": "!(get-atoms (new-space))",
-          "result": "[]"
+          "expr": "(add-atom &self SymbolA)\n(add-atom &self (= (pi) 3.14))\n(get-atoms &self)",
+          "eval": "!(add-atom &self SymbolA)\n!(add-atom &self (= (pi) 3.14))\n!(get-atoms &self)",
+          "result": "[SymbolA, (= (pi) 3.14)]"
         }
       ],
       "errors": [],
@@ -4498,16 +4430,11 @@
       "summary": "Returns documentation for the given Atom/Function",
       "description": "Returns documentation for the given Atom/Function",
       "signatures": [
-        "get-doc : (-> SpaceType Atom %Undefined%)"
+        "get-doc : (-> Atom %Undefined%)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "SpaceType",
-          "description": "Atomspace where documentation should be searched"
-        },
-        {
-          "name": "$2",
           "type": "Atom",
           "description": "Atom/Function name for which documentation is needed"
         }
@@ -4517,34 +4444,29 @@
         "description": "Documentation for the given atom/function"
       },
       "types": [
-        "(-> SpaceType Atom %Undefined%)"
+        "(-> Atom %Undefined%)"
       ],
       "examples": [
         {
-          "expr": "(get-doc id)",
-          "eval": "!(get-doc id)",
-          "result": "[(@doc-formal (@item id) (@kind function) (@type (-> $t#637 $t#637)) (@desc \"Returns its argument\") (@params ((@param (@type $t#637) (@desc \"Input argument\")))) (@return (@type $t#637) (@desc \"Input argument\")))]"
+          "expr": "(add-atom &self (@doc local-plus (@desc \"Local plus doc\") (@params ((@param \"x\") (@param \"y\"))) (@return \"sum\")))\n(get-doc local-plus)",
+          "eval": "!(add-atom &self (@doc local-plus (@desc \"Local plus doc\") (@params ((@param \"x\") (@param \"y\"))) (@return \"sum\")))\n!(get-doc local-plus)",
+          "result": "[(@doc-formal (@item local-plus) (@kind function) (@type %Undefined%) (@desc \"Local plus doc\") (@params ((@param (@type %Undefined%) (@desc \"x\")) (@param (@type %Undefined%) (@desc \"y\")))) (@return (@type %Undefined%) (@desc \"sum\")))]"
         },
         {
-          "expr": "(get-doc +)",
-          "eval": "!(get-doc +)",
-          "result": "[(@doc-formal (@item +) (@kind function) (@type (-> Number Number Number)) (@desc \"Sums two numbers\") (@params ((@param (@type Number) (@desc \"Addend\")) (@param (@type Number) (@desc \"Augend\")))) (@return (@type Number) (@desc \"Sum\")))]"
+          "expr": "(get-doc filter-atom)",
+          "eval": "!(get-doc filter-atom)",
+          "result": "[(@doc-formal (@item filter-atom) (@kind function) (@type (-> Expression Variable Atom Expression)) (@desc \"Function takes list of atoms (first argument), variable (second argument) and filter predicate (third argument) and returns list with items which passed filter. E.g. (filter-atom (1 2 3 4) $v (eval (> $v 2))) will give (3 4)\") (@params ((@param (@type Expression) (@desc \"List of atoms\")) (@param (@type Variable) (@desc \"Variable\")) (@param (@type Atom) (@desc \"Filter predicate\")))) (@return (@type Expression) (@desc \"Filtered list\")))]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#get-doc",
       "overloads": [
         {
-          "type": "(-> SpaceType Atom %Undefined%)",
-          "signature": "get-doc : (-> SpaceType Atom %Undefined%)",
+          "type": "(-> Atom %Undefined%)",
+          "signature": "get-doc : (-> Atom %Undefined%)",
           "params": [
             {
               "name": "$1",
-              "type": "SpaceType",
-              "description": "Atomspace where documentation should be searched"
-            },
-            {
-              "name": "$2",
               "type": "Atom",
               "description": "Atom/Function name for which documentation is needed"
             }
@@ -4565,16 +4487,11 @@
       "summary": "Function used by get-doc (in case of input type Expression) and get-doc-single-atom (in case input value is not a function) to get documentation on input value",
       "description": "Function used by get-doc (in case of input type Expression) and get-doc-single-atom (in case input value is not a function) to get documentation on input value",
       "signatures": [
-        "get-doc-atom : (-> SpaceType Atom %Undefined%)"
+        "get-doc-atom : (-> Atom %Undefined%)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "SpaceType",
-          "description": "Atomspace where documentation should be searched"
-        },
-        {
-          "name": "$2",
           "type": "Atom",
           "description": "Atom's name to get documentation for"
         }
@@ -4584,34 +4501,29 @@
         "description": "Documentation on input Atom"
       },
       "types": [
-        "(-> SpaceType Atom %Undefined%)"
+        "(-> Atom %Undefined%)"
       ],
       "examples": [
         {
-          "expr": "(get-doc-atom id)",
-          "eval": "!(get-doc-atom id)",
-          "result": "[(@doc-formal (@item id) (@kind function) (@type %Undefined%) (@desc \"Returns its argument\") (@params ((@param (@type %Undefined%) (@desc \"Input argument\")))) (@return (@type %Undefined%) (@desc \"Input argument\")))]"
+          "expr": "(add-atom &self (@doc local-color (@desc \"A local color atom\")))\n(get-doc-atom local-color)",
+          "eval": "!(add-atom &self (@doc local-color (@desc \"A local color atom\")))\n!(get-doc-atom local-color)",
+          "result": "[(@doc-formal (@item local-color) (@kind atom) (@type %Undefined%) (@desc \"A local color atom\"))]"
         },
         {
-          "expr": "(get-doc-atom +)",
-          "eval": "!(get-doc-atom +)",
-          "result": "[(@doc-formal (@item +) (@kind function) (@type %Undefined%) (@desc \"Sums two numbers\") (@params ((@param (@type %Undefined%) (@desc \"Addend\")) (@param (@type %Undefined%) (@desc \"Augend\")))) (@return (@type %Undefined%) (@desc \"Sum\")))]"
+          "expr": "(get-doc-atom filter-atom)",
+          "eval": "!(get-doc-atom filter-atom)",
+          "result": "[(@doc-formal (@item filter-atom) (@kind function) (@type %Undefined%) (@desc \"Function takes list of atoms (first argument), variable (second argument) and filter predicate (third argument) and returns list with items which passed filter. E.g. (filter-atom (1 2 3 4) $v (eval (> $v 2))) will give (3 4)\") (@params ((@param (@type %Undefined%) (@desc \"List of atoms\")) (@param (@type %Undefined%) (@desc \"Variable\")) (@param (@type %Undefined%) (@desc \"Filter predicate\")))) (@return (@type %Undefined%) (@desc \"Filtered list\")))]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#get-doc-atom",
       "overloads": [
         {
-          "type": "(-> SpaceType Atom %Undefined%)",
-          "signature": "get-doc-atom : (-> SpaceType Atom %Undefined%)",
+          "type": "(-> Atom %Undefined%)",
+          "signature": "get-doc-atom : (-> Atom %Undefined%)",
           "params": [
             {
               "name": "$1",
-              "type": "SpaceType",
-              "description": "Atomspace where documentation should be searched"
-            },
-            {
-              "name": "$2",
               "type": "Atom",
               "description": "Atom's name to get documentation for"
             }
@@ -4632,21 +4544,16 @@
       "summary": "Function used by get-doc-single-atom to get documentation on a function.",
       "description": "Function used by get-doc-single-atom to get documentation on a function. It returns documentation on a function if it exists or default documentation with no description otherwise",
       "signatures": [
-        "get-doc-function : (-> SpaceType Atom Type %Undefined%)"
+        "get-doc-function : (-> Atom Type %Undefined%)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "SpaceType",
-          "description": "Atomspace where documentation should be searched"
-        },
-        {
-          "name": "$2",
           "type": "Atom",
           "description": "Function name for which documentation is needed"
         },
         {
-          "name": "$3",
+          "name": "$2",
           "type": "Type",
           "description": "Type notation for this function"
         }
@@ -4656,39 +4563,34 @@
         "description": "Documentation for the given function"
       },
       "types": [
-        "(-> SpaceType Atom Type %Undefined%)"
+        "(-> Atom Type %Undefined%)"
       ],
       "examples": [
         {
-          "expr": "(get-doc-function id (-> Atom Atom))",
-          "eval": "!(get-doc-function id (-> Atom Atom))",
-          "result": "[(@doc-formal (@item id) (@kind function) (@type (-> Atom Atom)) (@desc \"Returns its argument\") (@params ((@param (@type Atom) (@desc \"Input argument\")))) (@return (@type Atom) (@desc \"Input argument\")))]"
+          "expr": "(add-atom &self (@doc local-plus (@desc \"Local plus doc\") (@params ((@param \"x\") (@param \"y\"))) (@return \"sum\")))\n(get-doc-function local-plus (-> Number Number Number))",
+          "eval": "!(add-atom &self (@doc local-plus (@desc \"Local plus doc\") (@params ((@param \"x\") (@param \"y\"))) (@return \"sum\")))\n!(get-doc-function local-plus (-> Number Number Number))",
+          "result": "[(@doc-formal (@item local-plus) (@kind function) (@type (-> Number Number Number)) (@desc \"Local plus doc\") (@params ((@param (@type Number) (@desc \"x\")) (@param (@type Number) (@desc \"y\")))) (@return (@type Number) (@desc \"sum\")))]"
         },
         {
-          "expr": "(get-doc-function + (-> Number Number Number))",
-          "eval": "!(get-doc-function + (-> Number Number Number))",
-          "result": "[(@doc-formal (@item +) (@kind function) (@type (-> Number Number Number)) (@desc \"Sums two numbers\") (@params ((@param (@type Number) (@desc \"Addend\")) (@param (@type Number) (@desc \"Augend\")))) (@return (@type Number) (@desc \"Sum\")))]"
+          "expr": "(get-doc-function filter-atom (-> Expression Variable Atom Expression))",
+          "eval": "!(get-doc-function filter-atom (-> Expression Variable Atom Expression))",
+          "result": "[(@doc-formal (@item filter-atom) (@kind function) (@type (-> Expression Variable Atom Expression)) (@desc \"Function takes list of atoms (first argument), variable (second argument) and filter predicate (third argument) and returns list with items which passed filter. E.g. (filter-atom (1 2 3 4) $v (eval (> $v 2))) will give (3 4)\") (@params ((@param (@type Expression) (@desc \"List of atoms\")) (@param (@type Variable) (@desc \"Variable\")) (@param (@type Atom) (@desc \"Filter predicate\")))) (@return (@type Expression) (@desc \"Filtered list\")))]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#get-doc-function",
       "overloads": [
         {
-          "type": "(-> SpaceType Atom Type %Undefined%)",
-          "signature": "get-doc-function : (-> SpaceType Atom Type %Undefined%)",
+          "type": "(-> Atom Type %Undefined%)",
+          "signature": "get-doc-function : (-> Atom Type %Undefined%)",
           "params": [
             {
               "name": "$1",
-              "type": "SpaceType",
-              "description": "Atomspace where documentation should be searched"
-            },
-            {
-              "name": "$2",
               "type": "Atom",
               "description": "Function name for which documentation is needed"
             },
             {
-              "name": "$3",
+              "name": "$2",
               "type": "Type",
               "description": "Type notation for this function"
             }
@@ -4706,8 +4608,8 @@
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Function used by get-doc-function to get function's parameters documentation (including return value)",
-      "description": "Function used by get-doc-function to get function's parameters documentation (including return value)",
+      "summary": "Builds typed documentation parameters and typed return from raw @param/@return descriptions plus a type list.",
+      "description": "Builds typed documentation parameters and typed return from raw @param/@return descriptions plus a type list. It pairs parameter descriptions with the first N types and uses the last type as return type.",
       "signatures": [
         "get-doc-params : (-> Expression Atom Expression (Expression Atom))"
       ],
@@ -4737,14 +4639,14 @@
       ],
       "examples": [
         {
-          "expr": "(get-doc-params ((@param \"x\")) (@return \"r\") (Atom Atom))",
-          "eval": "!(get-doc-params ((@param \"x\")) (@return \"r\") (Atom Atom))",
-          "result": "[(((@param (@type Atom) (@desc \"x\"))) (@return (@type Atom) (@desc \"r\")))]"
+          "expr": "(get-doc-params ((@param \"Left addend\") (@param \"Right addend\")) (@return \"Sum\") (Number Number Number))",
+          "eval": "!(get-doc-params ((@param \"Left addend\") (@param \"Right addend\")) (@return \"Sum\") (Number Number Number))",
+          "result": "[(((@param (@type Number) (@desc \"Left addend\")) (@param (@type Number) (@desc \"Right addend\"))) (@return (@type Number) (@desc \"Sum\")))]"
         },
         {
-          "expr": "(get-doc-params ((@param \"v\")) (@return \"out\") (Atom Atom))",
-          "eval": "!(get-doc-params ((@param \"v\")) (@return \"out\") (Atom Atom))",
-          "result": "[(((@param (@type Atom) (@desc \"v\"))) (@return (@type Atom) (@desc \"out\")))]"
+          "expr": "(get-doc-params ((@param \"List of atoms\") (@param \"Variable\") (@param \"Filter predicate\")) (@return \"Filtered list\") (Expression Variable Atom Expression))",
+          "eval": "!(get-doc-params ((@param \"List of atoms\") (@param \"Variable\") (@param \"Filter predicate\")) (@return \"Filtered list\") (Expression Variable Atom Expression))",
+          "result": "[(((@param (@type Expression) (@desc \"List of atoms\")) (@param (@type Variable) (@desc \"Variable\")) (@param (@type Atom) (@desc \"Filter predicate\"))) (@return (@type Expression) (@desc \"Filtered list\")))]"
         }
       ],
       "errors": [],
@@ -4774,7 +4676,7 @@
             "type": "(Expression Atom)",
             "description": "United list of params and return value each augmented with its type. E.g. (((@param (@type Atom) (@desc Description)) (@param (@type Atom) (@desc Description2))) (@return (@type Atom) (@desc Description)))"
           },
-          "description": "Function used by get-doc-function to get function's parameters documentation (including return value)",
+          "description": "Builds typed documentation parameters and typed return from raw @param/@return descriptions plus a type list. It pairs parameter descriptions with the first N types and uses the last type as return type.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#get-doc-params"
         }
       ]
@@ -4786,16 +4688,11 @@
       "summary": "Function used by get-doc to get documentation on either function or atom.",
       "description": "Function used by get-doc to get documentation on either function or atom. It checks if input name is the name of function or atom and calls correspondent function",
       "signatures": [
-        "get-doc-single-atom : (-> SpaceType Atom %Undefined%)"
+        "get-doc-single-atom : (-> Atom %Undefined%)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "SpaceType",
-          "description": "Atomspace where documentation should be searched"
-        },
-        {
-          "name": "$2",
           "type": "Atom",
           "description": "Atom/Function name for which documentation is needed"
         }
@@ -4805,34 +4702,29 @@
         "description": "Documentation for the given atom/function"
       },
       "types": [
-        "(-> SpaceType Atom %Undefined%)"
+        "(-> Atom %Undefined%)"
       ],
       "examples": [
         {
-          "expr": "(get-doc-single-atom id)",
-          "eval": "!(get-doc-single-atom id)",
-          "result": "[(@doc-formal (@item id) (@kind function) (@type (-> $t#146 $t#146)) (@desc \"Returns its argument\") (@params ((@param (@type $t#146) (@desc \"Input argument\")))) (@return (@type $t#146) (@desc \"Input argument\")))]"
+          "expr": "(add-atom &self (@doc local-plus (@desc \"Local plus doc\") (@params ((@param \"x\") (@param \"y\"))) (@return \"sum\")))\n(get-doc-single-atom local-plus)",
+          "eval": "!(add-atom &self (@doc local-plus (@desc \"Local plus doc\") (@params ((@param \"x\") (@param \"y\"))) (@return \"sum\")))\n!(get-doc-single-atom local-plus)",
+          "result": "[(@doc-formal (@item local-plus) (@kind function) (@type %Undefined%) (@desc \"Local plus doc\") (@params ((@param (@type %Undefined%) (@desc \"x\")) (@param (@type %Undefined%) (@desc \"y\")))) (@return (@type %Undefined%) (@desc \"sum\")))]"
         },
         {
-          "expr": "(get-doc-single-atom +)",
-          "eval": "!(get-doc-single-atom +)",
-          "result": "[(@doc-formal (@item +) (@kind function) (@type (-> Number Number Number)) (@desc \"Sums two numbers\") (@params ((@param (@type Number) (@desc \"Addend\")) (@param (@type Number) (@desc \"Augend\")))) (@return (@type Number) (@desc \"Sum\")))]"
+          "expr": "(get-doc-single-atom filter-atom)",
+          "eval": "!(get-doc-single-atom filter-atom)",
+          "result": "[(@doc-formal (@item filter-atom) (@kind function) (@type (-> Expression Variable Atom Expression)) (@desc \"Function takes list of atoms (first argument), variable (second argument) and filter predicate (third argument) and returns list with items which passed filter. E.g. (filter-atom (1 2 3 4) $v (eval (> $v 2))) will give (3 4)\") (@params ((@param (@type Expression) (@desc \"List of atoms\")) (@param (@type Variable) (@desc \"Variable\")) (@param (@type Atom) (@desc \"Filter predicate\")))) (@return (@type Expression) (@desc \"Filtered list\")))]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#get-doc-single-atom",
       "overloads": [
         {
-          "type": "(-> SpaceType Atom %Undefined%)",
-          "signature": "get-doc-single-atom : (-> SpaceType Atom %Undefined%)",
+          "type": "(-> Atom %Undefined%)",
+          "signature": "get-doc-single-atom : (-> Atom %Undefined%)",
           "params": [
             {
               "name": "$1",
-              "type": "SpaceType",
-              "description": "Atomspace where documentation should be searched"
-            },
-            {
-              "name": "$2",
               "type": "Atom",
               "description": "Atom/Function name for which documentation is needed"
             }
@@ -4871,14 +4763,24 @@
       ],
       "examples": [
         {
-          "expr": "(get-metatype A)",
-          "eval": "!(get-metatype A)",
+          "expr": "(get-metatype 1)",
+          "eval": "!(get-metatype 1)",
+          "result": "[Grounded]"
+        },
+        {
+          "expr": "(get-metatype (+ 1 2))",
+          "eval": "!(get-metatype (+ 1 2))",
+          "result": "[Expression]"
+        },
+        {
+          "expr": "(get-metatype a)",
+          "eval": "!(get-metatype a)",
           "result": "[Symbol]"
         },
         {
-          "expr": "(get-metatype X)",
-          "eval": "!(get-metatype X)",
-          "result": "[Symbol]"
+          "expr": "(get-metatype $x)",
+          "eval": "!(get-metatype $x)",
+          "result": "[Variable]"
         }
       ],
       "errors": [],
@@ -4908,23 +4810,23 @@
       "via_import": false,
       "kind": "function",
       "summary": "Gets a state as an argument and returns its wrapped atom.",
-      "description": "Gets a state as an argument and returns its wrapped atom. E.g. (get-state (State 5)) -> 5",
+      "description": "Gets a state as an argument and returns its wrapped atom. Use with new-state to read state value, and with change-state! to read updated value.",
       "signatures": [
-        "get-state : (-> (StateMonad $ret-type#254899) $ret-type#254899)"
+        "get-state : (-> (StateMonad $t) $t)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "(StateMonad $ret-type#254899)",
+          "type": "(StateMonad $t)",
           "description": "State"
         }
       ],
       "returns": {
-        "type": "$ret-type#254899",
+        "type": "$t",
         "description": "Atom wrapped by state"
       },
       "types": [
-        "(-> (StateMonad $ret-type#254899) $ret-type#254899)"
+        "(-> (StateMonad $t) $t)"
       ],
       "examples": [
         {
@@ -4933,26 +4835,36 @@
           "result": "[5]"
         },
         {
-          "expr": "(get-state (new-state A))",
-          "eval": "!(get-state (new-state A))",
-          "result": "[A]"
+          "expr": "(get-state (new-state (a b)))",
+          "eval": "!(get-state (new-state (a b)))",
+          "result": "[(a b)]"
+        },
+        {
+          "expr": "(get-state (change-state! (new-state 5) 9))",
+          "eval": "!(get-state (change-state! (new-state 5) 9))",
+          "result": "[9]"
+        },
+        {
+          "expr": "(get-state (new-state StatusReady))",
+          "eval": "!(get-state (new-state StatusReady))",
+          "result": "[StatusReady]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#get-state",
       "overloads": [
         {
-          "type": "(-> (StateMonad $ret-type#254899) $ret-type#254899)",
-          "signature": "get-state : (-> (StateMonad $ret-type#254899) $ret-type#254899)",
+          "type": "(-> (StateMonad $t) $t)",
+          "signature": "get-state : (-> (StateMonad $t) $t)",
           "params": [
             {
               "name": "$1",
-              "type": "(StateMonad $ret-type#254899)",
+              "type": "(StateMonad $t)",
               "description": "State"
             }
           ],
           "returns": {
-            "type": "$ret-type#254899",
+            "type": "$t",
             "description": "Atom wrapped by state"
           },
           "description": "Gets a state as an argument and returns its wrapped atom. E.g. (get-state (State 5)) -> 5",
@@ -4985,13 +4897,18 @@
       ],
       "examples": [
         {
-          "expr": "(get-type A)",
-          "eval": "!(get-type A)",
-          "result": "[%Undefined%]"
+          "expr": "(get-type 5)",
+          "eval": "!(get-type 5)",
+          "result": "[Number]"
         },
         {
-          "expr": "(get-type X)",
-          "eval": "!(get-type X)",
+          "expr": "(get-type \"4\")",
+          "eval": "!(get-type \"4\")",
+          "result": "[String]"
+        },
+        {
+          "expr": "(get-type (A B C))",
+          "eval": "!(get-type (A B C))",
           "result": "[%Undefined%]"
         }
       ],
@@ -5047,14 +4964,24 @@
       ],
       "examples": [
         {
-          "expr": "(get-type-space &self B)",
-          "eval": "!(get-type-space &self B)",
-          "result": "[%Undefined%]"
+          "expr": "(get-type-space &self 5)",
+          "eval": "!(get-type-space &self 5)",
+          "result": "[Number]"
         },
         {
-          "expr": "(get-type-space &self Y)",
-          "eval": "!(get-type-space &self Y)",
-          "result": "[%Undefined%]"
+          "expr": "(get-type-space &self \"4\")",
+          "eval": "!(get-type-space &self \"4\")",
+          "result": "[String]"
+        },
+        {
+          "expr": "(get-type-space &self +)",
+          "eval": "!(get-type-space &self +)",
+          "result": "[(-> Number Number Number)]"
+        },
+        {
+          "expr": "(get-type-space &self filter-atom)",
+          "eval": "!(get-type-space &self filter-atom)",
+          "result": "[(-> Expression Variable Atom Expression)]"
         }
       ],
       "errors": [],
@@ -5110,12 +5037,6 @@
       "examples": [
         {
           "expr": "(git-module! \"https://github.com/trueagi-io/hyperon-experimental.git\")",
-          "eval": "!(git-module! \"https://github.com/trueagi-io/hyperon-experimental.git\")",
-          "result": "[()]"
-        },
-        {
-          "expr": "(chain (git-module! \"https://github.com/trueagi-io/hyperon-experimental.git\") $r ())",
-          "eval": "!(chain (git-module! \"https://github.com/trueagi-io/hyperon-experimental.git\") $r ())",
           "result": "[()]"
         }
       ],
@@ -5166,14 +5087,12 @@
       ],
       "examples": [
         {
-          "expr": "(help! A)",
-          "eval": "!(help! A)",
-          "result": "Atom A: %Undefined% No documentation"
+          "expr": "(help! +)",
+          "result": "Prints function documentation for + (signature, params, return)"
         },
         {
-          "expr": "(help! X)",
-          "eval": "!(help! X)",
-          "result": "Atom X: %Undefined% No documentation"
+          "expr": "(help! filter-atom)",
+          "result": "Prints function documentation for filter-atom (signature, params, return)"
         }
       ],
       "errors": [],
@@ -5202,8 +5121,8 @@
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Function used by function help!",
-      "description": "Function used by function help! to output parameters using println!",
+      "summary": "Prints one formatted parameter line used by help! output.",
+      "description": "Prints one formatted parameter line from a parameter descriptor in the form (@param (@type T) (@desc \"...\")); used internally by help! via println!.",
       "signatures": [
         "help-param! : (-> Atom (->))"
       ],
@@ -5211,7 +5130,7 @@
         {
           "name": "$1",
           "type": "Atom",
-          "description": "Parameters list"
+          "description": "Parameter descriptor in form (@param (@type T) (@desc \"...\"))"
         }
       ],
       "returns": {
@@ -5223,14 +5142,12 @@
       ],
       "examples": [
         {
-          "expr": "(help-param! A)",
-          "eval": "!(help-param! A)",
-          "result": "[]"
+          "expr": "(help-param! (@param (@type Number) (@desc \"Addend\")))",
+          "result": "Prints: \"  (type Number) Addend\"; final value [()]"
         },
         {
-          "expr": "(help-param! X)",
-          "eval": "!(help-param! X)",
-          "result": "[]"
+          "expr": "(help-param! (@param (@type Atom) (@desc \"Filter predicate\")))",
+          "result": "Prints: \"  (type Atom) Filter predicate\"; final value [()]"
         }
       ],
       "errors": [],
@@ -5243,14 +5160,14 @@
             {
               "name": "$1",
               "type": "Atom",
-              "description": "Parameters list"
+              "description": "Parameter descriptor in form (@param (@type T) (@desc \"...\"))"
             }
           ],
           "returns": {
             "type": "(->)",
             "description": "Unit atom"
           },
-          "description": "Function used by function help! to output parameters using println!",
+          "description": "Prints one formatted parameter line from a parameter descriptor in the form (@param (@type T) (@desc \"...\")); used internally by help! via println!.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#help-param"
         }
       ]
@@ -5278,18 +5195,7 @@
       "types": [
         "(-> SpaceType (->))"
       ],
-      "examples": [
-        {
-          "expr": "(help-space! &self)",
-          "eval": "!(help-space! &self)",
-          "result": "[(help-space! ModuleSpace(GroundingSpace-top))]"
-        },
-        {
-          "expr": "(help-space! (new-space))",
-          "eval": "!(help-space! (new-space))",
-          "result": "[(help-space! GroundingSpace-0x590a4ee3c4a8)]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#help-space",
       "overloads": [
@@ -5319,49 +5225,59 @@
       "summary": "Returns its argument",
       "description": "Returns its argument",
       "signatures": [
-        "id : (-> $ret-type#673022 $ret-type#673022)"
+        "id : (-> $t $t)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "$ret-type#673022",
+          "type": "$t",
           "description": "Input argument"
         }
       ],
       "returns": {
-        "type": "$ret-type#673022",
+        "type": "$t",
         "description": "Input argument"
       },
       "types": [
-        "(-> $ret-type#673022 $ret-type#673022)"
+        "(-> $t $t)"
       ],
       "examples": [
         {
-          "expr": "(id A)",
-          "eval": "!(id A)",
-          "result": "[A]"
+          "expr": "(id 5)",
+          "eval": "!(id 5)",
+          "result": "[5]"
         },
         {
-          "expr": "(id X)",
-          "eval": "!(id X)",
-          "result": "[X]"
+          "expr": "(id \"hello\")",
+          "eval": "!(id \"hello\")",
+          "result": "[\"hello\"]"
+        },
+        {
+          "expr": "(id (+ 1 2))",
+          "eval": "!(id (+ 1 2))",
+          "result": "[3]"
+        },
+        {
+          "expr": "(id $x)",
+          "eval": "!(id $x)",
+          "result": "[$x]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#id",
       "overloads": [
         {
-          "type": "(-> $ret-type#673022 $ret-type#673022)",
-          "signature": "id : (-> $ret-type#673022 $ret-type#673022)",
+          "type": "(-> $t $t)",
+          "signature": "id : (-> $t $t)",
           "params": [
             {
               "name": "$1",
-              "type": "$ret-type#673022",
+              "type": "$t",
               "description": "Input argument"
             }
           ],
           "returns": {
-            "type": "$ret-type#673022",
+            "type": "$t",
             "description": "Input argument"
           },
           "description": "Returns its argument",
@@ -5376,7 +5292,7 @@
       "summary": "Replace itself by one of the arguments depending on condition.",
       "description": "Replace itself by one of the arguments depending on condition.",
       "signatures": [
-        "if : (-> Bool Atom Atom $ret-type#547082)"
+        "if : (-> Bool Atom Atom $t)"
       ],
       "params": [
         {
@@ -5396,30 +5312,30 @@
         }
       ],
       "returns": {
-        "type": "$ret-type#547082",
+        "type": "$t",
         "description": "Second or third argument"
       },
       "types": [
-        "(-> Bool Atom Atom $ret-type#547082)"
+        "(-> Bool Atom Atom $t)"
       ],
       "examples": [
         {
-          "expr": "(if True B C)",
-          "eval": "!(if True B C)",
-          "result": "[B]"
+          "expr": "(if True (+ 1 2) (+ 10 20))",
+          "eval": "!(if True (+ 1 2) (+ 10 20))",
+          "result": "[3]"
         },
         {
-          "expr": "(if False Y Z)",
-          "eval": "!(if False Y Z)",
-          "result": "[Z]"
+          "expr": "(if False (+ 1 2) (+ 10 20))",
+          "eval": "!(if False (+ 1 2) (+ 10 20))",
+          "result": "[30]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#if",
       "overloads": [
         {
-          "type": "(-> Bool Atom Atom $ret-type#547082)",
-          "signature": "if : (-> Bool Atom Atom $ret-type#547082)",
+          "type": "(-> Bool Atom Atom $t)",
+          "signature": "if : (-> Bool Atom Atom $t)",
           "params": [
             {
               "name": "$1",
@@ -5438,7 +5354,7 @@
             }
           ],
           "returns": {
-            "type": "$ret-type#547082",
+            "type": "$t",
             "description": "Second or third argument"
           },
           "description": "Replace itself by one of the arguments depending on condition.",
@@ -5451,7 +5367,7 @@
       "via_import": false,
       "kind": "function",
       "summary": "Checks if first argument is non empty expression.",
-      "description": "Checks if first argument is non empty expression. If so gets tail and head from the first argument and returns forth argument using head and tail values. Returns fifth argument otherwise.",
+      "description": "Checks if first argument is non-empty expression. If so, gets head and tail from the first argument and returns fourth argument using head and tail values. Returns fifth argument otherwise.",
       "signatures": [
         "if-decons-expr : (-> Expression Variable Variable Atom Atom %Undefined%)"
       ],
@@ -5491,14 +5407,14 @@
       ],
       "examples": [
         {
-          "expr": "(if-decons-expr (a b) $y $x D A)",
-          "eval": "!(if-decons-expr (a b) $y $x D A)",
-          "result": "[D]"
+          "expr": "(if-decons-expr (10 20 30) $head $tail ($head $tail) Empty)",
+          "eval": "!(if-decons-expr (10 20 30) $head $tail ($head $tail) Empty)",
+          "result": "[(10 (20 30))]"
         },
         {
-          "expr": "(if-decons-expr (x y) $v2 $v1 W X)",
-          "eval": "!(if-decons-expr (x y) $v2 $v1 W X)",
-          "result": "[W]"
+          "expr": "(if-decons-expr () $head $tail ($head $tail) Empty)",
+          "eval": "!(if-decons-expr () $head $tail ($head $tail) Empty)",
+          "result": "[]"
         }
       ],
       "errors": [],
@@ -5538,7 +5454,7 @@
             "type": "%Undefined%",
             "description": "Either template with head and tail replaced by values or default value"
           },
-          "description": "Checks if first argument is non empty expression. If so gets tail and head from the first argument and returns forth argument using head and tail values. Returns fifth argument otherwise.",
+          "description": "Checks if first argument is non-empty expression. If so, gets head and tail from the first argument and returns fourth argument using head and tail values. Returns fifth argument otherwise.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#if-decons-expr"
         }
       ]
@@ -5583,14 +5499,14 @@
       ],
       "examples": [
         {
-          "expr": "(if-equal A B C D)",
-          "eval": "!(if-equal A B C D)",
-          "result": "[D]"
+          "expr": "(if-equal 5 5 (+ 1 2) (+ 9 1))",
+          "eval": "!(if-equal 5 5 (+ 1 2) (+ 9 1))",
+          "result": "[3]"
         },
         {
-          "expr": "(if-equal X Y Z W)",
-          "eval": "!(if-equal X Y Z W)",
-          "result": "[W]"
+          "expr": "(if-equal 5 6 (+ 1 2) (+ 9 1))",
+          "eval": "!(if-equal 5 6 (+ 1 2) (+ 9 1))",
+          "result": "[10]"
         }
       ],
       "errors": [],
@@ -5665,14 +5581,14 @@
       ],
       "examples": [
         {
-          "expr": "(if-error A B C)",
-          "eval": "!(if-error A B C)",
-          "result": "[C]"
+          "expr": "(if-error (Error bad \"msg\") handled ok)",
+          "eval": "!(if-error (Error bad \"msg\") handled ok)",
+          "result": "[handled]"
         },
         {
-          "expr": "(if-error X Y Z)",
-          "eval": "!(if-error X Y Z)",
-          "result": "[Z]"
+          "expr": "(if-error (+ 1 2) handled ok)",
+          "eval": "!(if-error (+ 1 2) handled ok)",
+          "result": "[ok]"
         }
       ],
       "errors": [],
@@ -5735,18 +5651,7 @@
       "types": [
         "(-> Atom Atom (->))"
       ],
-      "examples": [
-        {
-          "expr": "(chain (register-module! \"/tmp/metta_verify_module.metta\") $r (import! &self \"metta_verify_module\"))",
-          "eval": "!(chain (register-module! \"/tmp/metta_verify_module.metta\") $r (import! &self \"metta_verify_module\"))",
-          "result": "[()]"
-        },
-        {
-          "expr": "(chain (register-module! \"/tmp/metta_verify_module_2.metta\") $r (import! &self \"metta_verify_module_2\"))",
-          "eval": "!(chain (register-module! \"/tmp/metta_verify_module_2.metta\") $r (import! &self \"metta_verify_module_2\"))",
-          "result": "[()]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#import",
       "overloads": [
@@ -5797,18 +5702,7 @@
       "types": [
         "(-> Atom %Undefined%)"
       ],
-      "examples": [
-        {
-          "expr": "(chain (register-module! \"/tmp/metta_verify_module.metta\") $r (include \"metta_verify_module\"))",
-          "eval": "!(chain (register-module! \"/tmp/metta_verify_module.metta\") $r (include \"metta_verify_module\"))",
-          "result": "[5]"
-        },
-        {
-          "expr": "(chain (register-module! \"/tmp/metta_verify_module_2.metta\") $r (include \"metta_verify_module_2\"))",
-          "eval": "!(chain (register-module! \"/tmp/metta_verify_module_2.metta\") $r (include \"metta_verify_module_2\"))",
-          "result": "[12]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#include",
       "overloads": [
@@ -5931,11 +5825,6 @@
           "expr": "(intersection (superpose (a b c c)) (superpose (b c c c d)))",
           "eval": "!(intersection (superpose (a b c c)) (superpose (b c c c d)))",
           "result": "[c, c, b]"
-        },
-        {
-          "expr": "(intersection A B)",
-          "eval": "!(intersection A B)",
-          "result": "[]"
         }
       ],
       "errors": [],
@@ -6057,9 +5946,9 @@
       ],
       "examples": [
         {
-          "expr": "(is-function Atom)",
-          "eval": "!(is-function Atom)",
-          "result": "[False]"
+          "expr": "(is-function (-> Atom Atom))",
+          "eval": "!(is-function (-> Atom Atom))",
+          "result": "[True]"
         },
         {
           "expr": "(is-function Number)",
@@ -6119,9 +6008,9 @@
           "result": "[False]"
         },
         {
-          "expr": "(isinf-math 9)",
-          "eval": "!(isinf-math 9)",
-          "result": "[False]"
+          "expr": "(isinf-math (pow-math 10 1000))",
+          "eval": "!(isinf-math (pow-math 10 1000))",
+          "result": "[True]"
         }
       ],
       "errors": [],
@@ -6176,9 +6065,9 @@
           "result": "[False]"
         },
         {
-          "expr": "(isnan-math 9)",
-          "eval": "!(isnan-math 9)",
-          "result": "[False]"
+          "expr": "(isnan-math (sqrt-math -1))",
+          "eval": "!(isnan-math (sqrt-math -1))",
+          "result": "[True]"
         }
       ],
       "errors": [],
@@ -6208,7 +6097,7 @@
       "via_import": false,
       "kind": "function",
       "summary": "Unify two first argument and apply result of the unification on third argument.",
-      "description": "Unify two first argument and apply result of the unification on third argument. Second argument is evaluated before unification.",
+      "description": "Unifies first two arguments and applies resulting bindings to the third argument. Second argument is evaluated before unification.",
       "signatures": [
         "let : (-> Atom %Undefined% Atom %Undefined%)"
       ],
@@ -6238,13 +6127,18 @@
       ],
       "examples": [
         {
-          "expr": "(let A B C)",
-          "eval": "!(let A B C)",
-          "result": "[]"
+          "expr": "(let $x (+ 1 2) (* $x 10))",
+          "eval": "!(let $x (+ 1 2) (* $x 10))",
+          "result": "[30]"
         },
         {
-          "expr": "(let X Y Z)",
-          "eval": "!(let X Y Z)",
+          "expr": "(let ($h $t) (decons-atom (A B C)) (cons-atom $h $t))",
+          "eval": "!(let ($h $t) (decons-atom (A B C)) (cons-atom $h $t))",
+          "result": "[(A B C)]"
+        },
+        {
+          "expr": "(let ($h $t) () ($h $t))",
+          "eval": "!(let ($h $t) () ($h $t))",
           "result": "[]"
         }
       ],
@@ -6275,7 +6169,7 @@
             "type": "%Undefined%",
             "description": "Third argument or Empty"
           },
-          "description": "Unify two first argument and apply result of the unification on third argument. Second argument is evaluated before unification.",
+          "description": "Unifies first two arguments and applies resulting bindings to the third argument. Second argument is evaluated before unification.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#let"
         }
       ]
@@ -6285,7 +6179,7 @@
       "via_import": false,
       "kind": "function",
       "summary": "Same as let but inputs list of pairs of atoms to be unified.",
-      "description": "Same as let but inputs list of pairs of atoms to be unified. For example (let* ((\\(v1 (+ 1 2)) (\\)v2 (* 5 6))) (+ $v1 $v2))",
+      "description": "Same as let, but takes a list of bindings evaluated in order. Each binding can use variables introduced by earlier bindings.",
       "signatures": [
         "let* : (-> Expression Atom %Undefined%)"
       ],
@@ -6310,14 +6204,14 @@
       ],
       "examples": [
         {
-          "expr": "(let* (($v1 (+ 1 2)) ($v2 (* 5 6))) (+ $v1 $v2))",
-          "eval": "!(let* (($v1 (+ 1 2)) ($v2 (* 5 6))) (+ $v1 $v2))",
-          "result": "[33]"
+          "expr": "(let* (($x (+ 1 2)) ($y (* $x 10)) ($z (- $y 5))) $z)",
+          "eval": "!(let* (($x (+ 1 2)) ($y (* $x 10)) ($z (- $y 5))) $z)",
+          "result": "[25]"
         },
         {
-          "expr": "(let* (a b) B)",
-          "eval": "!(let* (a b) B)",
-          "result": "[(Error (let* (a b) B) \"List of (<pattern> <atom>) pairs is expected as a second argument\")]"
+          "expr": "(let* ((($h $t) (decons-atom (A B C))) ($len (size-atom $t))) ($h $len))",
+          "eval": "!(let* ((($h $t) (decons-atom (A B C))) ($len (size-atom $t))) ($h $len))",
+          "result": "[(A 2)]"
         }
       ],
       "errors": [],
@@ -6342,7 +6236,7 @@
             "type": "%Undefined%",
             "description": "Second argument or Empty"
           },
-          "description": "Same as let but inputs list of pairs of atoms to be unified. For example (let* ((\\(v1 (+ 1 2)) (\\)v2 (* 5 6))) (+ $v1 $v2))",
+          "description": "Same as let, but takes a list of bindings evaluated in order. Each binding can use variables introduced by earlier bindings.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#let_1"
         }
       ]
@@ -6449,8 +6343,8 @@
       ],
       "examples": [
         {
-          "expr": "(map-atom (1 2 3 4) $v (eval (+ $v 1)))",
-          "eval": "!(map-atom (1 2 3 4) $v (eval (+ $v 1)))",
+          "expr": "(map-atom (1 2 3 4) $v  (+ $v 1))",
+          "eval": "!(map-atom (1 2 3 4) $v  (+ $v 1))",
           "result": "[(2 3 4 5)]"
         },
         {
@@ -6526,14 +6420,14 @@
       ],
       "examples": [
         {
-          "expr": "(match &self B C)",
-          "eval": "!(match &self B C)",
-          "result": "[]"
+          "expr": "(add-atom &self (parent alice bob))\n(match &self (parent alice $x) $x)",
+          "eval": "!(add-atom &self (parent alice bob))\n!(match &self (parent alice $x) $x)",
+          "result": "[bob]"
         },
         {
-          "expr": "(match &self Y Z)",
-          "eval": "!(match &self Y Z)",
-          "result": "[]"
+          "expr": "(let $s (new-space) (let $_ (add-atom $s (parent alice bob)) (let $_ (add-atom $s (parent alice carol)) (collapse (match $s (parent alice $x) $x)))))",
+          "eval": "!(let $s (new-space) (let $_ (add-atom $s (parent alice bob)) (let $_ (add-atom $s (parent alice carol)) (collapse (match $s (parent alice $x) $x)))))",
+          "result": "[(bob carol)]"
         }
       ],
       "errors": [],
@@ -6575,69 +6469,69 @@
       "summary": "Checks if two types (second and third arguments) can be unified and returns result of OR operation between first argument and type checking result",
       "description": "Checks if two types (second and third arguments) can be unified and returns result of OR operation between first argument and type checking result",
       "signatures": [
-        "match-type-or : %Undefined%"
+        "match-type-or : (-> Bool Type Type Bool)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "%Undefined%",
+          "type": "Bool",
           "description": "Boolean value"
         },
         {
           "name": "$2",
-          "type": "%Undefined%",
+          "type": "Type",
           "description": "First type"
         },
         {
           "name": "$3",
-          "type": "%Undefined%",
+          "type": "Type",
           "description": "Second type"
         }
       ],
       "returns": {
-        "type": "%Undefined%",
+        "type": "Bool",
         "description": "True or False"
       },
       "types": [
-        "%Undefined%"
+        "(-> Bool Type Type Bool)"
       ],
       "examples": [
         {
-          "expr": "(match-type-or A B C)",
-          "eval": "!(match-type-or A B C)",
-          "result": "[(match-type-or A B C)]"
+          "expr": "(match-type-or False Number (-> Atom Atom))",
+          "eval": "!(match-type-or False Number (-> Atom Atom))",
+          "result": "[False]"
         },
         {
-          "expr": "(match-type-or X Y Z)",
-          "eval": "!(match-type-or X Y Z)",
-          "result": "[(match-type-or X Y Z)]"
+          "expr": "(match-type-or False Atom Symbol)",
+          "eval": "!(match-type-or False Atom Symbol)",
+          "result": "[True]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#match-type-or",
       "overloads": [
         {
-          "type": "%Undefined%",
-          "signature": "match-type-or : %Undefined%",
+          "type": "(-> Bool Type Type Bool)",
+          "signature": "match-type-or : (-> Bool Type Type Bool)",
           "params": [
             {
               "name": "$1",
-              "type": "%Undefined%",
+              "type": "Bool",
               "description": "Boolean value"
             },
             {
               "name": "$2",
-              "type": "%Undefined%",
+              "type": "Type",
               "description": "First type"
             },
             {
               "name": "$3",
-              "type": "%Undefined%",
+              "type": "Type",
               "description": "Second type"
             }
           ],
           "returns": {
-            "type": "%Undefined%",
+            "type": "Bool",
             "description": "True or False"
           },
           "description": "Checks if two types (second and third arguments) can be unified and returns result of OR operation between first argument and type checking result",
@@ -6652,17 +6546,17 @@
       "summary": "Checks if two types can be unified and returns third argument if so, fourth - otherwise",
       "description": "Checks if two types can be unified and returns third argument if so, fourth - otherwise",
       "signatures": [
-        "match-types : %Undefined%"
+        "match-types : (-> Type Type Atom Atom %Undefined%)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "%Undefined%",
+          "type": "Type",
           "description": "First type"
         },
         {
           "name": "$2",
-          "type": "%Undefined%",
+          "type": "Type",
           "description": "Second type"
         },
         {
@@ -6681,35 +6575,35 @@
         "description": "Third or fourth argument"
       },
       "types": [
-        "%Undefined%"
+        "(-> Type Type Atom Atom %Undefined%)"
       ],
       "examples": [
         {
-          "expr": "(match-types A B C D)",
-          "eval": "!(match-types A B C D)",
-          "result": "[D]"
+          "expr": "(match-types Number (-> Atom Atom) yes no)",
+          "eval": "!(match-types Number (-> Atom Atom) yes no)",
+          "result": "[no]"
         },
         {
-          "expr": "(match-types X Y Z W)",
-          "eval": "!(match-types X Y Z W)",
-          "result": "[W]"
+          "expr": "(match-types Atom Symbol yes no)",
+          "eval": "!(match-types Atom Symbol yes no)",
+          "result": "[yes]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#match-types",
       "overloads": [
         {
-          "type": "%Undefined%",
-          "signature": "match-types : %Undefined%",
+          "type": "(-> Type Type Atom Atom %Undefined%)",
+          "signature": "match-types : (-> Type Type Atom Atom %Undefined%)",
           "params": [
             {
               "name": "$1",
-              "type": "%Undefined%",
+              "type": "Type",
               "description": "First type"
             },
             {
               "name": "$2",
-              "type": "%Undefined%",
+              "type": "Type",
               "description": "Second type"
             },
             {
@@ -6824,14 +6718,14 @@
       ],
       "examples": [
         {
-          "expr": "(metta A Atom &self)",
-          "eval": "!(metta A Atom &self)",
-          "result": "[A]"
+          "expr": "(metta (+ 1 2) Number &self)",
+          "eval": "!(metta (+ 1 2) Number &self)",
+          "result": "[3]"
         },
         {
-          "expr": "(metta X Number &self)",
-          "eval": "!(metta X Number &self)",
-          "result": "[X]"
+          "expr": "(metta (quote (+ 1 2)) Atom &self)",
+          "eval": "!(metta (quote (+ 1 2)) Atom &self)",
+          "result": "[(quote (+ 1 2))]"
         }
       ],
       "errors": [],
@@ -6946,18 +6840,7 @@
       "types": [
         "(-> Atom SpaceType)"
       ],
-      "examples": [
-        {
-          "expr": "(mod-space! \"metta_verify_module\")",
-          "eval": "!(mod-space! \"metta_verify_module\")",
-          "result": "[ModuleSpace(GroundingSpace-top:metta_verify_module)]"
-        },
-        {
-          "expr": "(mod-space! \"metta_verify_module_2\")",
-          "eval": "!(mod-space! \"metta_verify_module_2\")",
-          "result": "[ModuleSpace(GroundingSpace-top:metta_verify_module_2)]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#mod-space",
       "overloads": [
@@ -7003,18 +6886,7 @@
       "types": [
         "(-> SpaceType SpaceType)"
       ],
-      "examples": [
-        {
-          "expr": "(module-space-no-deps &self)",
-          "eval": "!(module-space-no-deps &self)",
-          "result": "[(module-space-no-deps ModuleSpace(GroundingSpace-top))]"
-        },
-        {
-          "expr": "(chain (module-space-no-deps &self) $x $x)",
-          "eval": "!(chain (module-space-no-deps &self) $x $x)",
-          "result": "[(module-space-no-deps ModuleSpace(GroundingSpace-top))]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#module-space-no-deps",
       "overloads": [
@@ -7054,18 +6926,7 @@
       "types": [
         "(-> SpaceType)"
       ],
-      "examples": [
-        {
-          "expr": "(new-space)",
-          "eval": "!(new-space)",
-          "result": "[GroundingSpace-0x577b66214bd8]"
-        },
-        {
-          "expr": "(chain (new-space) $x $x)",
-          "eval": "!(chain (new-space) $x $x)",
-          "result": "[GroundingSpace-0x5d0869559f28]"
-        }
-      ],
+      "examples": [],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#new-space",
       "overloads": [
@@ -7107,14 +6968,14 @@
       ],
       "examples": [
         {
-          "expr": "(new-state 5)",
-          "eval": "!(new-state 5)",
-          "result": "[(State 5)]"
+          "expr": "(new-state StatusReady)",
+          "eval": "!(new-state StatusReady)",
+          "result": "[(State StatusReady)]"
         },
         {
-          "expr": "(new-state A)",
-          "eval": "!(new-state A)",
-          "result": "[(State A)]"
+          "expr": "(new-state (task done))",
+          "eval": "!(new-state (task done))",
+          "result": "[(State (task done))]"
         }
       ],
       "errors": [],
@@ -7164,14 +7025,14 @@
       ],
       "examples": [
         {
-          "expr": "(noeval A)",
-          "eval": "!(noeval A)",
-          "result": "[A]"
+          "expr": "(noeval (+ 1 2))",
+          "eval": "!(noeval (+ 1 2))",
+          "result": "[(+ 1 2)]"
         },
         {
-          "expr": "(noeval X)",
-          "eval": "!(noeval X)",
-          "result": "[X]"
+          "expr": "(noeval (match &self (A B) C))",
+          "eval": "!(noeval (match &self (A B) C))",
+          "result": "[(match ModuleSpace(GroundingSpace-top) (A B) C)]"
         }
       ],
       "errors": [],
@@ -7217,11 +7078,6 @@
         {
           "expr": "(nop)",
           "eval": "!(nop)",
-          "result": "[()]"
-        },
-        {
-          "expr": "(chain (nop) $x $x)",
-          "eval": "!(chain (nop) $x $x)",
           "result": "[()]"
         }
       ],
@@ -7271,13 +7127,13 @@
       ],
       "examples": [
         {
-          "expr": "(noreduce-eq A B)",
-          "eval": "!(noreduce-eq A B)",
-          "result": "[False]"
+          "expr": "(noreduce-eq (+ 1 2) (+ 1 2))",
+          "eval": "!(noreduce-eq (+ 1 2) (+ 1 2))",
+          "result": "[True]"
         },
         {
-          "expr": "(noreduce-eq X Y)",
-          "eval": "!(noreduce-eq X Y)",
+          "expr": "(noreduce-eq (+ 1 2) 3)",
+          "eval": "!(noreduce-eq (+ 1 2) 3)",
           "result": "[False]"
         }
       ],
@@ -7503,20 +7359,20 @@
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Changes global key's (first argument) value to a new one (second argument).",
-      "description": "Changes global key's (first argument) value to a new one (second argument). Possible pragmas: (pragma! type-check auto) - check type of the atom before evaluation (pragma! interpreter bare-minimal) - use minimal MeTTa semantics when evaluating atom (pragma! max-stack-depth ) - limit depth of the interpreter's stack, 0 - no limit (default behavior)",
+      "summary": "Sets global interpreter pragmas.",
+      "description": "Changes global key (first argument) to a new value (second argument). Common pragmas: (pragma! type-check auto) checks type before evaluation; (pragma! interpreter bare-minimal) uses minimal MeTTa semantics; (pragma! max-stack-depth <number>) limits interpreter stack depth.",
       "signatures": [
         "pragma! : %Undefined%"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "%Undefined%",
+          "type": "Atom",
           "description": "Key's name"
         },
         {
           "name": "$2",
-          "type": "%Undefined%",
+          "type": "Atom",
           "description": "New value"
         }
       ],
@@ -7529,13 +7385,11 @@
       ],
       "examples": [
         {
-          "expr": "(pragma! A B)",
-          "eval": "!(pragma! A B)",
+          "expr": "(pragma! type-check auto)",
           "result": "[()]"
         },
         {
-          "expr": "(pragma! X Y)",
-          "eval": "!(pragma! X Y)",
+          "expr": "(pragma! interpreter bare-minimal)",
           "result": "[()]"
         }
       ],
@@ -7548,12 +7402,12 @@
           "params": [
             {
               "name": "$1",
-              "type": "%Undefined%",
+              "type": "Atom",
               "description": "Key's name"
             },
             {
               "name": "$2",
-              "type": "%Undefined%",
+              "type": "Atom",
               "description": "New value"
             }
           ],
@@ -7561,7 +7415,7 @@
             "type": "%Undefined%",
             "description": "Unit atom"
           },
-          "description": "Changes global key's (first argument) value to a new one (second argument). Possible pragmas: (pragma! type-check auto) - check type of the atom before evaluation (pragma! interpreter bare-minimal) - use minimal MeTTa semantics when evaluating atom (pragma! max-stack-depth ) - limit depth of the interpreter's stack, 0 - no limit (default behavior)",
+          "description": "Changes global key (first argument) to a new value (second argument). Common pragmas: (pragma! type-check auto) checks type before evaluation; (pragma! interpreter bare-minimal) uses minimal MeTTa semantics; (pragma! max-stack-depth <number>) limits interpreter stack depth.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#pragma"
         }
       ]
@@ -7586,13 +7440,11 @@
       "examples": [
         {
           "expr": "(print-mods!)",
-          "eval": "!(print-mods!)",
-          "result": "top = 0"
+          "result": "Prints loaded module tree; final value [()]"
         },
         {
           "expr": "(chain (print-mods!) $x $x)",
-          "eval": "!(chain (print-mods!) $x $x)",
-          "result": "top = 0"
+          "result": "Prints loaded module tree; final value [()]"
         }
       ],
       "errors": [],
@@ -7636,14 +7488,12 @@
       ],
       "examples": [
         {
-          "expr": "(println! A)",
-          "eval": "!(println! A)",
-          "result": "A"
+          "expr": "(println! (+ 1 2))",
+          "result": "Prints 3"
         },
         {
-          "expr": "(println! X)",
-          "eval": "!(println! X)",
-          "result": "X"
+          "expr": "(println! \"Hello\")",
+          "result": "Prints Hello"
         }
       ],
       "errors": [],
@@ -7693,14 +7543,14 @@
       ],
       "examples": [
         {
-          "expr": "(quote A)",
-          "eval": "!(quote A)",
-          "result": "[(quote A)]"
+          "expr": "(quote (+ 1 2))",
+          "eval": "!(quote (+ 1 2))",
+          "result": "[(quote (+ 1 2))]"
         },
         {
-          "expr": "(quote X)",
-          "eval": "!(quote X)",
-          "result": "[(quote X)]"
+          "expr": "(quote $x)",
+          "eval": "!(quote $x)",
+          "result": "[(quote $x)]"
         }
       ],
       "errors": [],
@@ -7853,55 +7703,55 @@
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Returns value from the (function ...) expression",
-      "description": "Returns value from the (function ...) expression",
+      "summary": "Return marker used by (function ...).",
+      "description": "Marks a value to be returned from (function ...). Used alone it stays wrapped as (return ...).",
       "signatures": [
-        "return : (-> $ret-type#826118 $ret-type#826118)"
+        "return : (-> $t $t)"
       ],
       "params": [
         {
           "name": "$1",
-          "type": "$ret-type#826118",
+          "type": "$t",
           "description": "Value to be returned"
         }
       ],
       "returns": {
-        "type": "$ret-type#826118",
+        "type": "$t",
         "description": "Passed argument"
       },
       "types": [
-        "(-> $ret-type#826118 $ret-type#826118)"
+        "(-> $t $t)"
       ],
       "examples": [
         {
-          "expr": "(return A)",
-          "eval": "!(return A)",
-          "result": "[(return A)]"
+          "expr": "(return 5)",
+          "eval": "!(return 5)",
+          "result": "[(return 5)]"
         },
         {
-          "expr": "(return X)",
-          "eval": "!(return X)",
-          "result": "[(return X)]"
+          "expr": "(function (eval (if True (return 7) 0)))",
+          "eval": "!(function (eval (if True (return 7) 0)))",
+          "result": "[7]"
         }
       ],
       "errors": [],
       "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#return_2",
       "overloads": [
         {
-          "type": "(-> $ret-type#826118 $ret-type#826118)",
-          "signature": "return : (-> $ret-type#826118 $ret-type#826118)",
+          "type": "(-> $t $t)",
+          "signature": "return : (-> $t $t)",
           "params": [
             {
               "name": "$1",
-              "type": "$ret-type#826118",
+              "type": "$t",
               "description": "Value to be returned"
             }
           ],
           "returns": {
-            "type": "$ret-type#826118",
+            "type": "$t",
             "description": "Passed argument"
           },
-          "description": "Returns value from the (function ...) expression",
+          "description": "Marks a value to be returned from (function ...). Used alone it stays wrapped as (return ...).",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#return_2"
         }
       ]
@@ -7936,14 +7786,14 @@
       ],
       "examples": [
         {
-          "expr": "(return-on-error A B)",
-          "eval": "!(return-on-error A B)",
-          "result": "[B]"
+          "expr": "(return-on-error (Error bad \"msg\") (+ 1 2))",
+          "eval": "!(return-on-error (Error bad \"msg\") (+ 1 2))",
+          "result": "[(return (Error bad \"msg\"))]"
         },
         {
-          "expr": "(return-on-error X Y)",
-          "eval": "!(return-on-error X Y)",
-          "result": "[Y]"
+          "expr": "(return-on-error 7 (+ 1 2))",
+          "eval": "!(return-on-error 7 (+ 1 2))",
+          "result": "[3]"
         }
       ],
       "errors": [],
@@ -8003,9 +7853,9 @@
           "result": "[10]"
         },
         {
-          "expr": "(round-math 9)",
-          "eval": "!(round-math 9)",
-          "result": "[9]"
+          "expr": "(round-math 9.4)",
+          "eval": "!(round-math 9.4)",
+          "result": "[10]"
         }
       ],
       "errors": [],
@@ -8034,8 +7884,8 @@
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Replaces all occurrences of any var inside atom (second argument) by unique variable, except list of variables to ignore (first argument).",
-      "description": "Replaces all occurrences of any var inside atom (second argument) by unique variable, except list of variables to ignore (first argument). Can be used to create a locally scoped variables",
+      "summary": "Renames variables in an atom to fresh unique ones, except those in the ignore list.",
+      "description": "Replaces variable occurrences in the second argument with fresh unique variables, except variables listed in the first argument. Useful for creating local variable scope and avoiding variable capture.",
       "signatures": [
         "sealed : (-> Expression Atom Atom)"
       ],
@@ -8060,14 +7910,14 @@
       ],
       "examples": [
         {
-          "expr": "(sealed (a b) B)",
-          "eval": "!(sealed (a b) B)",
-          "result": "[B]"
+          "expr": "(sealed ($x) (+ $x $y))",
+          "eval": "!(sealed ($x) (+ $x $y))",
+          "result": "Keeps $x unchanged and renames $y to a fresh unique variable (e.g. $y#N)"
         },
         {
-          "expr": "(sealed (x y) Y)",
-          "eval": "!(sealed (x y) Y)",
-          "result": "[Y]"
+          "expr": "(sealed ($x $z) (f $x (+ $y $z)))",
+          "eval": "!(sealed ($x $z) (f $x (+ $y $z)))",
+          "result": "Keeps $x and $z unchanged; renames $y to a fresh unique variable (e.g. $y#N)"
         }
       ],
       "errors": [],
@@ -8092,7 +7942,7 @@
             "type": "Atom",
             "description": "Second argument but with variables being replaced with unique variables"
           },
-          "description": "Replaces all occurrences of any var inside atom (second argument) by unique variable, except list of variables to ignore (first argument). Can be used to create a locally scoped variables",
+          "description": "Replaces variable occurrences in the second argument with fresh unique variables, except variables listed in the first argument. Useful for creating local variable scope and avoiding variable capture.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#sealed"
         }
       ]
@@ -8184,9 +8034,9 @@
           "result": "[2]"
         },
         {
-          "expr": "(size-atom (x y))",
-          "eval": "!(size-atom (x y))",
-          "result": "[2]"
+          "expr": "(size-atom (x y z))",
+          "eval": "!(size-atom (x y z))",
+          "result": "[3]"
         }
       ],
       "errors": [],
@@ -8215,8 +8065,8 @@
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Sorts expression which contains strings in alphabet order",
-      "description": "Sorts expression which contains strings in alphabet order",
+      "summary": "Sorts an expression of strings in alphabetical order.",
+      "description": "Sorts an expression which contains strings in alphabetical order.",
       "signatures": [
         "sort-strings : (-> Expression Expression)"
       ],
@@ -8236,14 +8086,14 @@
       ],
       "examples": [
         {
-          "expr": "(sort-strings (a b))",
-          "eval": "!(sort-strings (a b))",
-          "result": "[(sort-strings (a b))]"
+          "expr": "(sort-strings (\"banana\" \"apple\" \"cherry\"))",
+          "eval": "!(sort-strings (\"banana\" \"apple\" \"cherry\"))",
+          "result": "[(sort-strings (\"banana\" \"apple\" \"cherry\"))]"
         },
         {
-          "expr": "(sort-strings (x y))",
-          "eval": "!(sort-strings (x y))",
-          "result": "[(sort-strings (x y))]"
+          "expr": "(sort-strings (\"z\" \"a\" \"m\"))",
+          "eval": "!(sort-strings (\"z\" \"a\" \"m\"))",
+          "result": "[(sort-strings (\"z\" \"a\" \"m\"))]"
         }
       ],
       "errors": [],
@@ -8263,7 +8113,7 @@
             "type": "Expression",
             "description": "Sorted list of strings"
           },
-          "description": "Sorts expression which contains strings in alphabet order",
+          "description": "Sorts an expression which contains strings in alphabetical order.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#sort-strings"
         }
       ]
@@ -8355,14 +8205,14 @@
       ],
       "examples": [
         {
-          "expr": "(subtraction (superpose (a b b c)) (superpose (b c c d)))",
-          "eval": "!(subtraction (superpose (a b b c)) (superpose (b c c d)))",
-          "result": "[b, a]"
+          "expr": "(subtraction (superpose (1 2 2 3)) (superpose (2 4)))",
+          "eval": "!(subtraction (superpose (1 2 2 3)) (superpose (2 4)))",
+          "result": "[3, 2, 1]"
         },
         {
-          "expr": "(subtraction A B)",
-          "eval": "!(subtraction A B)",
-          "result": "[A]"
+          "expr": "(subtraction (superpose (a b c)) (superpose (c d)))",
+          "eval": "!(subtraction (superpose (a b c)) (superpose (c d)))",
+          "result": "[b, a]"
         }
       ],
       "errors": [],
@@ -8484,14 +8334,14 @@
       ],
       "examples": [
         {
-          "expr": "(superpose (a b))",
-          "eval": "!(superpose (a b))",
-          "result": "[a, b]"
+          "expr": "(superpose (1 2 3))",
+          "eval": "!(superpose (1 2 3))",
+          "result": "[1, 2, 3]"
         },
         {
-          "expr": "(superpose (x y))",
-          "eval": "!(superpose (x y))",
-          "result": "[x, y]"
+          "expr": "(superpose ((+ 1 2) (* 2 3)))",
+          "eval": "!(superpose ((+ 1 2) (* 2 3)))",
+          "result": "[3, 6]"
         }
       ],
       "errors": [],
@@ -8521,7 +8371,7 @@
       "via_import": false,
       "kind": "function",
       "summary": "Complement to the collapse-bind.",
-      "description": "Complement to the collapse-bind. It takes result of collapse-bind (first argument) and returns only result atoms without bindings",
+      "description": "Complement to collapse-bind. It takes collapse-bind output (pairs of (Atom Bindings)) and returns only atoms without bindings.",
       "signatures": [
         "superpose-bind : (-> Expression Atom)"
       ],
@@ -8529,7 +8379,7 @@
         {
           "name": "$1",
           "type": "Expression",
-          "description": "Expression in form (Atom Binding)"
+          "description": "Expression in form ((Atom Bindings) ...), usually output of collapse-bind"
         }
       ],
       "returns": {
@@ -8541,14 +8391,14 @@
       ],
       "examples": [
         {
-          "expr": "(superpose-bind ())",
-          "eval": "!(superpose-bind ())",
-          "result": "[]"
+          "expr": "(let $c (collapse-bind (metta (+ 1 2) Number &self)) (superpose-bind $c))",
+          "eval": "!(let $c (collapse-bind (metta (+ 1 2) Number &self)) (superpose-bind $c))",
+          "result": "[3]"
         },
         {
-          "expr": "(if True (superpose-bind ()) (superpose-bind ()))",
-          "eval": "!(if True (superpose-bind ()) (superpose-bind ()))",
-          "result": "[]"
+          "expr": "(let $c (collapse-bind (metta (superpose (1 2 3)) Number &self)) (collapse (superpose-bind $c)))",
+          "eval": "!(let $c (collapse-bind (metta (superpose (1 2 3)) Number &self)) (collapse (superpose-bind $c)))",
+          "result": "[(1 2 3)]"
         }
       ],
       "errors": [],
@@ -8561,14 +8411,14 @@
             {
               "name": "$1",
               "type": "Expression",
-              "description": "Expression in form (Atom Binding)"
+              "description": "Expression in form ((Atom Bindings) ...), usually output of collapse-bind"
             }
           ],
           "returns": {
             "type": "Atom",
             "description": "Non-deterministic list of Atoms"
           },
-          "description": "Complement to the collapse-bind. It takes result of collapse-bind (first argument) and returns only result atoms without bindings",
+          "description": "Complement to collapse-bind. It takes collapse-bind output (pairs of (Atom Bindings)) and returns only atoms without bindings.",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#superpose-bind"
         }
       ]
@@ -8603,14 +8453,14 @@
       ],
       "examples": [
         {
-          "expr": "(switch A (a b))",
-          "eval": "!(switch A (a b))",
-          "result": "[]"
+          "expr": "(switch 2 ((1 one) (2 two) ($_ other)))",
+          "eval": "!(switch 2 ((1 one) (2 two) ($_ other)))",
+          "result": "[two]"
         },
         {
-          "expr": "(switch X (x y))",
-          "eval": "!(switch X (x y))",
-          "result": "[]"
+          "expr": "(switch 5 ((1 one) (2 two) ($_ other)))",
+          "eval": "!(switch 5 ((1 one) (2 two) ($_ other)))",
+          "result": "[other]"
         }
       ],
       "errors": [],
@@ -8670,14 +8520,14 @@
       ],
       "examples": [
         {
-          "expr": "(switch-internal A (a b))",
-          "eval": "!(switch-internal A (a b))",
-          "result": "[(switch-internal A (a b))]"
+          "expr": "(switch-internal 2 (((1 one) (2 two) ($_ other))))",
+          "eval": "!(switch-internal 2 (((1 one) (2 two) ($_ other))))",
+          "result": "[(switch-internal 2 (((1 one) (2 two) ($_ other))))]"
         },
         {
-          "expr": "(switch-internal X (x y))",
-          "eval": "!(switch-internal X (x y))",
-          "result": "[(switch-internal X (x y))]"
+          "expr": "(switch-internal 5 (((1 one) (2 two) ($_ other))))",
+          "eval": "!(switch-internal 5 (((1 one) (2 two) ($_ other))))",
+          "result": "[(switch-internal 5 (((1 one) (2 two) ($_ other))))]"
         }
       ],
       "errors": [],
@@ -8794,14 +8644,12 @@
       ],
       "examples": [
         {
-          "expr": "(trace! A B)",
-          "eval": "!(trace! A B)",
-          "result": "[B]"
+          "expr": "(trace! \"step\" (+ 1 2))",
+          "result": "Prints \"step\"; returns [3]"
         },
         {
-          "expr": "(trace! X Y)",
-          "eval": "!(trace! X Y)",
-          "result": "[Y]"
+          "expr": "(trace! (+ 1 2) (* 2 3))",
+          "result": "Evaluates first arg to 3 and prints it; returns [6]"
         }
       ],
       "errors": [],
@@ -8861,8 +8709,8 @@
           "result": "[10]"
         },
         {
-          "expr": "(trunc-math 9)",
-          "eval": "!(trunc-math 9)",
+          "expr": "(trunc-math 9.6)",
+          "eval": "!(trunc-math 9.6)",
           "result": "[9]"
         }
       ],
@@ -8969,8 +8817,8 @@
       "common": true,
       "via_import": false,
       "kind": "function",
-      "summary": "Function used by get-doc-single-atom in case of absence of function's type notation",
-      "description": "Function used by get-doc-single-atom in case of absence of function's type notation",
+      "summary": "Builds a fallback function type when no explicit type annotation is available.",
+      "description": "Builds a fallback function type for get-doc/get-doc-single-atom when a function has no declared type. For N parameters it returns a Type with N+1 %Undefined% entries (including return type).",
       "signatures": [
         "undefined-doc-function-type : (-> Expression Type)"
       ],
@@ -8978,26 +8826,26 @@
         {
           "name": "$1",
           "type": "Expression",
-          "description": "List of parameters for the function we want to get documentation for"
+          "description": "Function parameter list expression, for example ($x $y)"
         }
       ],
       "returns": {
         "type": "Type",
-        "description": "List of %Undefined% number of which depends on input list size. So for two parameters function will return (%Undefined% %Undefined% %Undefined%)"
+        "description": "Type expression containing one %Undefined% per parameter plus one %Undefined% for the return type"
       },
       "types": [
         "(-> Expression Type)"
       ],
       "examples": [
         {
-          "expr": "(undefined-doc-function-type (a b))",
-          "eval": "!(undefined-doc-function-type (a b))",
+          "expr": "(undefined-doc-function-type ($lhs $rhs))",
+          "eval": "!(undefined-doc-function-type ($lhs $rhs))",
           "result": "[(%Undefined% %Undefined% %Undefined%)]"
         },
         {
-          "expr": "(undefined-doc-function-type (x y))",
-          "eval": "!(undefined-doc-function-type (x y))",
-          "result": "[(%Undefined% %Undefined% %Undefined%)]"
+          "expr": "(undefined-doc-function-type ($x $y $z))",
+          "eval": "!(undefined-doc-function-type ($x $y $z))",
+          "result": "[(%Undefined% %Undefined% %Undefined% %Undefined%)]"
         }
       ],
       "errors": [],
@@ -9010,14 +8858,14 @@
             {
               "name": "$1",
               "type": "Expression",
-              "description": "List of parameters for the function we want to get documentation for"
+              "description": "Function parameter list expression, for example ($x $y)"
             }
           ],
           "returns": {
             "type": "Type",
-            "description": "List of %Undefined% number of which depends on input list size. So for two parameters function will return (%Undefined% %Undefined% %Undefined%)"
+            "description": "Type expression containing one %Undefined% per parameter plus one %Undefined% for the return type"
           },
-          "description": "Function used by get-doc-single-atom in case of absence of function's type notation",
+          "description": "Builds a fallback function type for get-doc/get-doc-single-atom when a function has no declared type. For N parameters it returns a Type with N+1 %Undefined% entries (including return type).",
           "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#undefined-doc-function-type"
         }
       ]
@@ -9062,14 +8910,14 @@
       ],
       "examples": [
         {
-          "expr": "(unify A B C D)",
-          "eval": "!(unify A B C D)",
-          "result": "[D]"
+          "expr": "(unify (f $x) (f 7) $x no)",
+          "eval": "!(unify (f $x) (f 7) $x no)",
+          "result": "[7]"
         },
         {
-          "expr": "(unify X Y Z W)",
-          "eval": "!(unify X Y Z W)",
-          "result": "[W]"
+          "expr": "(unify (f $x) (g 7) $x no)",
+          "eval": "!(unify (f $x) (g 7) $x no)",
+          "result": "[no]"
         }
       ],
       "errors": [],
@@ -9139,14 +8987,14 @@
       ],
       "examples": [
         {
-          "expr": "(union (superpose (a b b c)) (superpose (b c c d)))",
-          "eval": "!(union (superpose (a b b c)) (superpose (b c c d)))",
-          "result": "[d, c, c, b, c, b, b, a]"
+          "expr": "(union (superpose (1 2 2 3)) (superpose (2 4)))",
+          "eval": "!(union (superpose (1 2 2 3)) (superpose (2 4)))",
+          "result": "[4, 2, 3, 2, 2, 1]"
         },
         {
-          "expr": "(union A B)",
-          "eval": "!(union A B)",
-          "result": "[B, A]"
+          "expr": "(union (superpose (a b)) (superpose (b c)))",
+          "eval": "!(union (superpose (a b)) (superpose (b c)))",
+          "result": "[c, b, b, a]"
         }
       ],
       "errors": [],
@@ -9268,14 +9116,14 @@
       ],
       "examples": [
         {
-          "expr": "(unique (superpose (a b c d d)))",
-          "eval": "!(unique (superpose (a b c d d)))",
-          "result": "[d, c, b, a]"
+          "expr": "(unique (superpose (1 2 2 3 3 3)))",
+          "eval": "!(unique (superpose (1 2 2 3 3 3)))",
+          "result": "[3, 2, 1]"
         },
         {
-          "expr": "(unique A)",
-          "eval": "!(unique A)",
-          "result": "[A]"
+          "expr": "(unique (superpose (a a b c c)))",
+          "eval": "!(unique (superpose (a a b c c)))",
+          "result": "[c, b, a]"
         }
       ],
       "errors": [],
@@ -9382,14 +9230,14 @@
       ],
       "examples": [
         {
+          "expr": "(unquote (quote (+ 1 2)))",
+          "eval": "!(unquote (quote (+ 1 2)))",
+          "result": "[3]"
+        },
+        {
           "expr": "(unquote (quote $x))",
           "eval": "!(unquote (quote $x))",
           "result": "[$x]"
-        },
-        {
-          "expr": "(unquote A)",
-          "eval": "!(unquote A)",
-          "result": "[(unquote A)]"
         }
       ],
       "errors": [],
@@ -9481,160 +9329,67 @@
         }
       ]
     },
-    "True": {
+    "@kind": {
       "common": true,
       "via_import": false,
-      "kind": "constant",
-      "summary": "The boolean literal for true.",
-      "description": "The boolean literal for true.",
+      "kind": "function",
+      "summary": "Used for documentation purposes.",
+      "description": "Used for documentation purposes. Shows type of entity to be documented.",
       "signatures": [
-        "True : Atom"
+        "(@kind atom) : DocKindAtom",
+        "(@kind function) : DocKindFunction"
       ],
-      "params": [],
-      "returns": {
-        "type": "Atom",
-        "description": "The boolean literal for true."
-      },
-      "types": [
-        "Atom"
-      ],
-      "examples": [],
-      "errors": [],
-      "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib",
-      "overloads": [
+      "params": [
         {
-          "type": "Atom",
-          "signature": "True : Atom",
-          "params": [],
-          "returns": {
-            "type": "Atom",
-            "description": "The boolean literal for true."
-          },
-          "description": "The boolean literal for true.",
-          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib"
+          "name": "$1",
+          "type": "Symbol",
+          "description": "Either atom or function."
         }
-      ]
-    },
-    "False": {
-      "common": true,
-      "via_import": false,
-      "kind": "constant",
-      "summary": "The boolean literal for false.",
-      "description": "The boolean literal for false.",
-      "signatures": [
-        "False : Atom"
       ],
-      "params": [],
       "returns": {
-        "type": "Atom",
-        "description": "The boolean literal for false."
+        "type": "DocKindAtom|DocKindFunction",
+        "description": "Kind marker for documentation entities."
       },
       "types": [
-        "Atom"
+        "(@kind atom) : DocKindAtom",
+        "(@kind function) : DocKindFunction"
       ],
-      "examples": [],
-      "errors": [],
-      "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib",
-      "overloads": [
+      "examples": [
         {
-          "type": "Atom",
-          "signature": "False : Atom",
-          "params": [],
-          "returns": {
-            "type": "Atom",
-            "description": "The boolean literal for false."
-          },
-          "description": "The boolean literal for false.",
-          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib"
+          "expr": "(@kind atom)",
+          "result": "[(@kind atom)]"
+        },
+        {
+          "expr": "(@kind function)",
+          "result": "[(@kind function)]"
         }
-      ]
-    },
-    "Nil": {
-      "common": true,
-      "via_import": false,
-      "kind": "constant",
-      "summary": "Represents the empty atom or null.",
-      "description": "Represents the empty atom or null.",
-      "signatures": [
-        "Nil : Atom"
       ],
-      "params": [],
-      "returns": {
-        "type": "Atom",
-        "description": "Represents the empty atom or null."
-      },
-      "types": [
-        "Atom"
-      ],
-      "examples": [],
       "errors": [],
-      "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib",
+      "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#kind-atom",
       "overloads": [
         {
-          "type": "Atom",
-          "signature": "Nil : Atom",
+          "type": "DocKindAtom",
+          "signature": "(@kind atom) : DocKindAtom",
           "params": [],
           "returns": {
-            "type": "Atom",
-            "description": "Represents the empty atom or null."
+            "type": "DocKindAtom",
+            "description": "Marker that documented entity kind is atom."
           },
-          "description": "Represents the empty atom or null.",
-          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib"
-        }
-      ]
-    },
-    "Cons": {
-      "common": true,
-      "via_import": false,
-      "kind": "constant",
-      "summary": "The constructor for lists, used to append an element to the head of a list.",
-      "description": "The constructor for lists, used to append an element to the head of a list.",
-      "signatures": [
-        "Cons : Atom"
-      ],
-      "params": [],
-      "returns": {
-        "type": "Atom",
-        "description": "The constructor for lists, used to append an element to the head of a list."
-      },
-      "types": [
-        "Atom"
-      ],
-      "examples": [],
-      "errors": [],
-      "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib",
-      "overloads": [
+          "description": "Used for documentation purposes. Shows type of entity to be documented. (@kind atom) in this case",
+          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#kind-atom"
+        },
         {
-          "type": "Atom",
-          "signature": "Cons : Atom",
+          "type": "DocKindFunction",
+          "signature": "(@kind function) : DocKindFunction",
           "params": [],
           "returns": {
-            "type": "Atom",
-            "description": "The constructor for lists, used to append an element to the head of a list."
+            "type": "DocKindFunction",
+            "description": "Marker that documented entity kind is function."
           },
-          "description": "The constructor for lists, used to append an element to the head of a list.",
-          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib"
+          "description": "Used for documentation purposes. Shows type of entity to be documented. (@kind function) in this case",
+          "source": "https://trueagi-io.github.io/hyperon-experimental/generated/corelib/#kind-function"
         }
       ]
     }
-  },
-  "classification": {
-    "keywords": [
-      "if",
-      "let",
-      "let*",
-      "match",
-      "case",
-      "collapse",
-      "superpose"
-    ],
-    "constants": [
-      "True",
-      "False",
-      "Nil",
-      "empty",
-      "Cons",
-      "Error"
-    ]
   }
 }

@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import { URL, pathToFileURL } from 'node:url';
-import keywordDataJson from './keywords.json';
+import stdlibDataJson from '../../metta-stdlib.json';
 import type { Range } from 'vscode-languageserver/node';
 
 type BuiltinCategory = 'keyword' | 'constant' | 'builtin';
@@ -32,11 +32,7 @@ interface BuiltinEntry {
     source?: string;
 }
 
-interface KeywordData {
-    classification?: {
-        keywords?: string[];
-        constants?: string[];
-    };
+interface StdlibData {
     builtins?: Record<string, BuiltinEntry>;
 }
 
@@ -47,14 +43,13 @@ export interface BuiltinMeta {
     kind: string | null;
 }
 
-const keywordData = keywordDataJson as KeywordData;
-const KEYWORD_SET = new Set(keywordData.classification?.keywords ?? []);
-const CONSTANT_SET = new Set(keywordData.classification?.constants ?? []);
-const BUILTIN_ENTRIES: Record<string, BuiltinEntry> = keywordData.builtins ?? {};
+const stdlibData = stdlibDataJson as StdlibData;
+const BUILTIN_ENTRIES: Record<string, BuiltinEntry> = stdlibData.builtins ?? {};
 
-function getCategory(symbol: string): BuiltinCategory {
-    if (KEYWORD_SET.has(symbol)) return 'keyword';
-    if (CONSTANT_SET.has(symbol)) return 'constant';
+function getCategory(entry: BuiltinEntry): BuiltinCategory {
+    const kind = entry.kind?.toLowerCase();
+    if (kind === 'keyword') return 'keyword';
+    if (kind === 'constant') return 'constant';
     return 'builtin';
 }
 
@@ -134,7 +129,7 @@ export const BUILTIN_META = new Map<string, BuiltinMeta>();
 export const BUILTIN_DOCS = new Map<string, string>();
 
 for (const [symbol, entry] of Object.entries(BUILTIN_ENTRIES)) {
-    const category = getCategory(symbol);
+    const category = getCategory(entry);
     BUILTIN_META.set(symbol, {
         category,
         source: entry.source ?? null,

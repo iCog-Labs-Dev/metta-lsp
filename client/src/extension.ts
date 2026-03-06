@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { setDefaultAutoSelectFamilyAttemptTimeout } from 'node:net';
 import { workspace, type ExtensionContext } from 'vscode';
 import {
     LanguageClient,
@@ -10,6 +11,8 @@ import {
 let client: LanguageClient | undefined;
 
 export function activate(context: ExtensionContext): void {
+    // Increase connection family fallback window for slower or dual-stack networks.
+    setDefaultAutoSelectFamilyAttemptTimeout(1000);
     const serverModule = context.asAbsolutePath(
         path.join('server', 'dist', 'server.js')
     );
@@ -43,3 +46,4 @@ export function deactivate(): Thenable<void> | undefined {
     }
     return client.stop();
 }
+

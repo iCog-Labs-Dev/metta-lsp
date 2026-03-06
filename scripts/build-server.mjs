@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { cpSync, mkdirSync, readdirSync } from 'node:fs';
+import { mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,4 +42,3 @@ await build({
 });
 
 mkdirSync(outDir, { recursive: true });
-cpSync(path.join(sourceDir, 'keywords.json'), path.join(outDir, 'keywords.json'));

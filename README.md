@@ -133,21 +133,19 @@ Current diagnostics include:
 - Type mismatch for calls when `:` signatures or built-in signatures are available
 - Ambiguous reference warnings when multiple overloads match
 
-## Keyword Management
+## Stdlib Metadata
 
-Keywords, constants, and built-ins are managed in `server/src/keywords.json`:
+Built-in symbols and documentation are loaded from the root `metta-stdlib.json` file:
 
 - `schemaVersion`
 - `builtins` with summary/signatures/params/examples/source links
-- `classification.keywords`
-- `classification.constants`
 
 Corelib documentation links are sourced from:
 `https://trueagi-io.github.io/hyperon-experimental/generated/corelib`
 
-To add a keyword:
+To update built-in symbol metadata:
 
-1. Add the symbol to `classification.keywords` in `server/src/keywords.json`.
+1. Edit the relevant symbol in `metta-stdlib.json`.
 2. Regenerate Tree-sitter highlights:
 
 ```powershell
