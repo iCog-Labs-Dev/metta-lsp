@@ -2,23 +2,25 @@
 
 Full-featured Language Server Protocol (LSP) support for the [MeTTa](https://wiki.opencog.org/w/MeTTa) language in Visual Studio Code.
 
+The extension client and language server source are implemented in strict TypeScript and compiled to JavaScript for runtime.
+
 ## Features
 
-- **Syntax Highlighting** — Tree-sitter powered semantic coloring for keywords, functions, variables, strings, numbers, and operators
-- **Diagnostics** — Real-time checks for syntax, scope, arity, type mismatches, and overload ambiguity
-- **Go to Definition** — Jump to any function or type definition across the workspace
-- **Rich Hover Documentation** — Highly detailed hover info including type signatures, descriptions, parameters, and return types
-- **Auto-Completion** — Context-aware suggestions for keywords and project symbols
-- **Find All References** — Locate every usage of a symbol across the project with scope awareness
-- **Rename Symbol** — Safe workspace-wide renaming with conflict detection
-- **Document Symbols** — Navigate files via the Outline view (supports `=`, `:`, `->`, and macro definitions)
-- **Signature Help** — Parameter hints when calling functions
-- **Formatting** — Full document, range, and on-type formatting for MeTTa code
+- Syntax Highlighting: Tree-sitter powered semantic coloring for keywords, functions, variables, strings, numbers, and operators
+- Diagnostics: real-time checks for syntax, scope, arity, type mismatches, and overload ambiguity
+- Go to Definition: jump to function/type definitions across the workspace
+- Hover Documentation: rich hover info with signatures, descriptions, parameters, and return types
+- Auto-Completion: context-aware suggestions for keywords and project symbols
+- Find All References: locate symbol usage across the project with scope awareness
+- Rename Symbol: safe workspace-wide renaming with conflict detection
+- Document Symbols: Outline integration for `=`, `:`, `->`, and macro definitions
+- Signature Help: parameter hints while calling functions
+- Formatting: full-document, range, and on-type formatting
 
 ## Prerequisites
 
-- **Node.js** v20+
-- **C++ Build Tools** — required for compiling the Tree-sitter native grammar (e.g., Visual Studio Build Tools on Windows)
+- Node.js v20+
+- C++ Build Tools for compiling the Tree-sitter native grammar (for example Visual Studio Build Tools on Windows)
 
 ## Getting Started
 
@@ -28,117 +30,131 @@ cd MeTTa-LSP
 npm install
 ```
 
-This repository is configured so a single root `npm install` also installs dependencies for `server/` and `grammar/` automatically (via root `postinstall`).
+The root `postinstall` installs dependencies for `server/` and `grammar/` as well.
 
-Press **F5** in VS Code to launch the Extension Development Host.
+Press `F5` in VS Code to launch the Extension Development Host.
 
-## Build & Package
+## Build and Package
 
 ```powershell
-npm run build        # bundle client + server
+npm run typecheck    # strict TypeScript validation (tsc --noEmit)
+npm run build        # typecheck + build server + build client
+npm run build:server # compile server/src/**/*.ts -> server/dist/**/*.js
+npm run build:client # bundle client/src/extension.ts -> dist/extension.js
+npm run watch        # rebuild client bundle on file changes
 npm run package      # build + create .vsix
-npm run watch        # rebuild on file changes
 ```
 
-The `.vsix` file will appear in the project root (e.g., `vscode-metta-1.1.0.vsix`).
+The packaged `.vsix` file is created in the project root.
+
+## Create a VSIX
+
+Use the project packaging script:
+
+```powershell
+npm install
+npm run package
+```
+
+The `package` script uses `vsce package --readme-path EXTENSION.md`, so repository `README.md` is never renamed or overwritten during packaging.
+
+Output:
+
+- A file like `vscode-metta-<version>.vsix` is generated in the repository root.
+
+Optional direct command (without the repo wrapper script):
+
+```powershell
+npx @vscode/vsce package --readme-path EXTENSION.md
+```
 
 ## Project Structure
 
-```
-├── client/                    # VS Code extension client (LSP client)
-│   └── src/
-│       └── extension.js       # Client entry point
-├── server/                    # Language Server (LSP server)
-│   └── src/
-│       ├── server.js          # Server entry point & request routing
-│       ├── analyzer.js        # Core analysis engine (parsing, indexing, scopes)
-│       ├── utils.js           # URI handling and shared utilities
-│       └── features/          # LSP feature handlers
-│           ├── completion.js      # Auto-completion
-│           ├── definition.js      # Go to Definition
-│           ├── diagnostics.js     # Syntax errors & duplicate detection
-│           ├── formatting.js      # Document/range/on-type formatting
-│           ├── hover.js           # Hover information
-│           ├── references.js      # Find All References
-│           ├── rename.js          # Rename Symbol
-│           ├── semantics.js       # Semantic token highlighting
-│           ├── signature.js       # Signature Help
-│           └── symbols.js        # Document Symbols
-├── grammar/                   # Tree-sitter MeTTa grammar
-│   ├── grammar.js             # Grammar definition
-│   ├── scripts/               # Codegen scripts
-│   │   └── generate-highlights.js # Maps keywords.json to highlights.scm
-│   ├── src/                   # Generated parser (parser.c, grammar.json)
-│   ├── queries/metta/         # Tree-sitter query files
-│   │   ├── definitions.scm        # Symbol definition patterns
-│   │   ├── highlights.scm         # Syntax highlighting captures
-│   │   ├── scopes.scm             # Scope detection (let, let*, match)
-│   │   ├── locals.scm             # Local symbol usage tracking
-│   │   ├── folds.scm              # Code folding ranges
-│   │   ├── indents.scm            # Indentation rules
-│   │   └── injections.scm         # Language injections
-│   └── bindings/node/         # Node.js native binding
-└── dist/                      # Bundled output (generated)
+```text
+client/
+  src/
+    extension.ts                 # VS Code extension client entry point
+server/
+  src/
+    server.ts                    # LSP server entry point and request routing
+    analyzer.ts                  # Core analysis engine (parsing, indexing, scopes)
+    utils.ts                     # URI handling and shared utility helpers
+    types.ts                     # Shared TypeScript interfaces/types
+    features/
+      completion.ts
+      definition.ts
+      diagnostics.ts
+      formatting.ts
+      hover.ts
+      references.ts
+      rename.ts
+      semantics.ts
+      signature.ts
+      symbols.ts
+  dist/                          # Compiled server runtime JS output
+grammar/                         # Tree-sitter MeTTa grammar and queries
+scripts/
+  build-server.mjs               # Compiles TS server source to server/dist
+dist/                            # Bundled extension client output
+tsconfig.json                    # Strict TypeScript compiler configuration
 ```
 
 ## Architecture
 
-### Analyzer (`analyzer.js`)
+### Analyzer (`server/src/analyzer.ts`)
 
-The core engine that provides:
+Provides:
 
-- **Tree-sitter parsing** with cached incremental re-parsing
-- **Global symbol index** built from `.scm` query files
-- **Scope tree construction** for shadowing and local variable detection
-- **Workspace scanning** to index all `.metta` files on startup
+- Tree-sitter parsing with cache-backed re-parsing
+- Global symbol index from `.scm` query files
+- Scope tree construction for shadowing and local variable analysis
+- Workspace scanning for `.metta` files
 
-All Tree-sitter queries are loaded from external `.scm` files in `grammar/queries/metta/`.
+All Tree-sitter queries are loaded from `grammar/queries/metta/`.
 
-### Feature Modules (`features/`)
+### Feature Modules (`server/src/features/`)
 
-Each LSP capability is isolated in its own module under `server/src/features/`. Feature modules receive the `analyzer` instance and `documents` manager, keeping request handling decoupled from the analysis engine.
+Each LSP capability is implemented in an isolated module. Handlers receive the analyzer and documents manager to keep analysis and transport concerns decoupled.
 
-### Client (`client/`)
+### Client (`client/src/extension.ts`)
 
-Thin LSP client that bootstraps the language server and forwards capabilities to VS Code.
+Thin LSP client that boots the server and forwards capabilities to VS Code. It launches the compiled server runtime at `server/dist/server.js`.
 
-## Maintenance
-
-### Diagnostics Coverage
+## Diagnostics Coverage
 
 Current diagnostics include:
 
 - Syntax errors and missing nodes
-- Duplicate top-level definitions (warning only for same function name and same arity)
+- Duplicate top-level definitions (same name and arity)
 - Undefined function calls
 - Undefined scoped variables in `=`, `let`, and `let*` (including destructured binders like `($h $t)`)
-- Undefined binding symbols (plain symbols that are neither built-in, user-defined, nor introduced by `bind!`)
+- Undefined binding symbols (symbols not built-in, user-defined, or introduced by `bind!`)
 - Argument count mismatch for calls
 - Type mismatch for calls when `:` signatures or built-in signatures are available
-- Ambiguous reference warnings when multiple overloads match the same call
+- Ambiguous reference warnings when multiple overloads match
 
-### Keyword Management
+## Keyword Management
 
-Keywords, constants, and built-ins are managed in a single source of truth: `server/src/keywords.json`.
-The file uses a structured corelib schema:
+Keywords, constants, and built-ins are managed in `server/src/keywords.json`:
 
 - `schemaVersion`
-- `builtins`: full corelib entries (summary, signatures, params, examples, and permanent `source` links)
-- `classification.keywords`: symbols highlighted as keywords
-- `classification.constants`: symbols highlighted as constants
+- `builtins` with summary/signatures/params/examples/source links
+- `classification.keywords`
+- `classification.constants`
 
-Corelib documentation links come from:
+Corelib documentation links are sourced from:
 `https://trueagi-io.github.io/hyperon-experimental/generated/corelib`
 
-To add a new keyword:
-1. Add the symbol to `classification.keywords` in `server/src/keywords.json`.
-2. Sync the Tree-sitter highlighter by running:
-   ```powershell
-   npm run grammar:generate-highlights
-   ```
+To add a keyword:
 
-This ensures that the Language Server (for completions) and Tree-sitter (for syntax highlighting) stay perfectly in sync.
-Keyword highlighting is intentionally scoped to the language keyword set, independent from the full builtin list.
+1. Add the symbol to `classification.keywords` in `server/src/keywords.json`.
+2. Regenerate Tree-sitter highlights:
+
+```powershell
+npm run grammar:generate-highlights
+```
+
+This keeps LSP completions and Tree-sitter highlighting in sync.
 
 ## License
 

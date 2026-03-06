@@ -2,9 +2,10 @@
     "name": "metta-lsp-server",
     "version": "1.0.0",
     "private": true,
-    "main": "src/server.js",
+    "main": "dist/server.js",
     "scripts": {
-        "start": "node src/server.js --stdio"
+        "build": "node ../scripts/build-server.mjs",
+        "start": "node dist/server.js --stdio"
     },
     "dependencies": {
         "vscode-languageserver": "^9.0.1",

@@ -1,18 +1,64 @@
-const path = require('path');
-const { URL, pathToFileURL } = require('url');
-const keywordData = require('./keywords.json');
+import * as path from 'node:path';
+import { URL, pathToFileURL } from 'node:url';
+import keywordDataJson from './keywords.json';
+import type { Range } from 'vscode-languageserver/node';
 
-const KEYWORD_SET = new Set(keywordData.classification?.keywords || []);
-const CONSTANT_SET = new Set(keywordData.classification?.constants || []);
-const BUILTIN_ENTRIES = keywordData.builtins || {};
+type BuiltinCategory = 'keyword' | 'constant' | 'builtin';
 
-function getCategory(symbol) {
+interface BuiltinParam {
+    name?: string;
+    type?: string;
+    description?: string;
+}
+
+interface BuiltinReturn {
+    type?: string;
+    description?: string;
+}
+
+interface BuiltinExample {
+    expr?: string;
+    result?: string;
+}
+
+interface BuiltinEntry {
+    kind?: string;
+    summary?: string;
+    description?: string;
+    signatures?: string[];
+    params?: BuiltinParam[];
+    returns?: BuiltinReturn;
+    examples?: BuiltinExample[];
+    source?: string;
+}
+
+interface KeywordData {
+    classification?: {
+        keywords?: string[];
+        constants?: string[];
+    };
+    builtins?: Record<string, BuiltinEntry>;
+}
+
+export interface BuiltinMeta {
+    category: BuiltinCategory;
+    source: string | null;
+    signatures: string[];
+    kind: string | null;
+}
+
+const keywordData = keywordDataJson as KeywordData;
+const KEYWORD_SET = new Set(keywordData.classification?.keywords ?? []);
+const CONSTANT_SET = new Set(keywordData.classification?.constants ?? []);
+const BUILTIN_ENTRIES: Record<string, BuiltinEntry> = keywordData.builtins ?? {};
+
+function getCategory(symbol: string): BuiltinCategory {
     if (KEYWORD_SET.has(symbol)) return 'keyword';
     if (CONSTANT_SET.has(symbol)) return 'constant';
     return 'builtin';
 }
 
-function pushSection(lines, title, content) {
+function pushSection(lines: string[], title: string, content: string | string[]): void {
     if (!content || (Array.isArray(content) && content.length === 0)) return;
     lines.push(`**${title}**`);
     if (Array.isArray(content)) {
@@ -23,9 +69,9 @@ function pushSection(lines, title, content) {
     lines.push('');
 }
 
-function formatBuiltinMarkdown(symbol, entry, category) {
-    const lines = [];
-    const kind = entry.kind || category;
+function formatBuiltinMarkdown(symbol: string, entry: BuiltinEntry, category: BuiltinCategory): string {
+    const lines: string[] = [];
+    const kind = entry.kind ?? category;
     lines.push(`**\`${symbol}\`** (${category}, ${kind})`);
     lines.push('');
 
@@ -44,9 +90,9 @@ function formatBuiltinMarkdown(symbol, entry, category) {
 
     if (Array.isArray(entry.params) && entry.params.length > 0) {
         const paramLines = entry.params.map((param, idx) => {
-            const name = param?.name || `$${idx + 1}`;
-            const type = param?.type || 'Any';
-            const description = param?.description ? ` - ${param.description}` : '';
+            const name = param.name ?? `$${idx + 1}`;
+            const type = param.type ?? 'Any';
+            const description = param.description ? ` - ${param.description}` : '';
             return `- \`${name}\` (\`${type}\`)${description}`;
         });
         pushSection(lines, 'Parameters', paramLines);
@@ -59,7 +105,7 @@ function formatBuiltinMarkdown(symbol, entry, category) {
     }
 
     if (Array.isArray(entry.examples) && entry.examples.length > 0) {
-        const exampleLines = [];
+        const exampleLines: string[] = [];
         for (const example of entry.examples) {
             if (example.expr) {
                 exampleLines.push('```metta');
@@ -84,23 +130,23 @@ function formatBuiltinMarkdown(symbol, entry, category) {
     return lines.join('\n').trim();
 }
 
-const BUILTIN_META = new Map();
-const BUILTIN_DOCS = new Map();
+export const BUILTIN_META = new Map<string, BuiltinMeta>();
+export const BUILTIN_DOCS = new Map<string, string>();
 
 for (const [symbol, entry] of Object.entries(BUILTIN_ENTRIES)) {
     const category = getCategory(symbol);
     BUILTIN_META.set(symbol, {
         category,
-        source: entry.source || null,
+        source: entry.source ?? null,
         signatures: Array.isArray(entry.signatures) ? entry.signatures : [],
-        kind: entry.kind || null
+        kind: entry.kind ?? null
     });
     BUILTIN_DOCS.set(symbol, formatBuiltinMarkdown(symbol, entry, category));
 }
 
-const BUILTIN_SYMBOLS = new Set(BUILTIN_META.keys());
+export const BUILTIN_SYMBOLS = new Set<string>(BUILTIN_META.keys());
 
-function normalizeUri(uri) {
+export function normalizeUri(uri: string): string {
     try {
         const parsed = new URL(uri);
         if (parsed.protocol === 'file:') {
@@ -116,37 +162,30 @@ function normalizeUri(uri) {
             return process.platform === 'win32' ? canonical.toLowerCase() : canonical;
         }
         return uri;
-    } catch (e) {
+    } catch {
         return uri;
     }
 }
 
-function uriToPath(uri) {
+export function uriToPath(uri: string): string | null {
     try {
         const url = new URL(uri);
         if (url.protocol === 'file:') {
             let pathname = decodeURIComponent(url.pathname);
-            if (process.platform === 'win32' && pathname.match(/^\/[a-zA-Z]:/)) {
+            if (process.platform === 'win32' && /^\/[a-zA-Z]:/.test(pathname)) {
                 pathname = pathname.slice(1);
             }
             return pathname;
         }
-    } catch (e) { }
+    } catch {
+        // Keep null on malformed input.
+    }
     return null;
 }
 
-function isRangeEqual(range1, range2) {
+export function isRangeEqual(range1: Range, range2: Range): boolean {
     return range1.start.line === range2.start.line &&
         range1.start.character === range2.start.character &&
         range1.end.line === range2.end.line &&
         range1.end.character === range2.end.character;
 }
-
-module.exports = {
-    BUILTIN_SYMBOLS,
-    BUILTIN_DOCS,
-    BUILTIN_META,
-    normalizeUri,
-    uriToPath,
-    isRangeEqual
-};

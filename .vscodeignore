@@ -1,9 +1,9 @@
 **
 !dist/**
+!server/dist/**
 !server/src/**
 !grammar/**
 !client/language-configuration.json
 !package.json
-!README.md
-!LICENSE.txt
+!LICENSE
 !node_modules/**

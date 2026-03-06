@@ -55,14 +55,17 @@
     },
     "scripts": {
         "postinstall": "npm install --prefix grammar && npm install --prefix server",
-        "build": "esbuild client/src/extension.js --bundle --platform=node --external:vscode --outfile=dist/extension.js --minify",
-        "watch": "esbuild client/src/extension.js --bundle --platform=node --external:vscode --outfile=dist/extension.js --watch",
-        "server:start": "npm run start --prefix server",
+        "build": "npm run typecheck && npm run build:server && npm run build:client",
+        "build:client": "esbuild client/src/extension.ts --bundle --platform=node --external:vscode --outfile=dist/extension.js --minify",
+        "build:server": "node scripts/build-server.mjs",
+        "typecheck": "tsc --noEmit",
+        "watch": "esbuild client/src/extension.ts --bundle --platform=node --external:vscode --outfile=dist/extension.js --watch",
+        "server:start": "npm run build:server && npm run start --prefix server",
         "grammar:generate": "npm run generate --prefix grammar",
         "grammar:build": "npm run build --prefix grammar",
         "grammar:test": "npm run test --prefix grammar",
         "grammar:generate-highlights": "npm run generate-highlights --prefix grammar",
-        "package": "npm run build && copy README.md README_REPO.md && copy /Y EXTENSION.md README.md && vsce package && move /Y README_REPO.md README.md",
+        "package": "npm run build && vsce package --readme-path EXTENSION.md",
         "vscode:prepublish": "npm run build"
     },
     "dependencies": {
@@ -74,7 +77,10 @@
         "vscode-languageserver-textdocument": "^1.0.11"
     },
     "devDependencies": {
+        "@types/node": "^25.3.5",
+        "@types/vscode": "1.80.0",
         "@vscode/vsce": "^3.3.2",
-        "esbuild": "^0.27.3"
+        "esbuild": "^0.27.3",
+        "typescript": "^5.9.3"
     }
 }

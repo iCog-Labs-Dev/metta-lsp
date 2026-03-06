@@ -10,7 +10,7 @@
                 "--disable-extension=undefined_publisher.metta-extension"
             ],
             "outFiles": [
-                "${workspaceFolder}/client/src/**/*.js"
+                "${workspaceFolder}/dist/**/*.js"
             ]
         }
     ]
