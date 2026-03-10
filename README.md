@@ -133,6 +133,21 @@ Current diagnostics include:
 - Type mismatch for calls when `:` signatures or built-in signatures are available
 - Ambiguous reference warnings when multiple overloads match
 
+### Diagnostics Configuration
+
+The following VS Code settings control diagnostics behavior:
+
+- `metta.diagnostics.undefinedFunctions`
+- `metta.diagnostics.undefinedVariables`
+- `metta.diagnostics.undefinedBindings`
+- `metta.diagnostics.typeMismatchEnabled`
+- `metta.diagnostics.typeMismatchMode`
+
+`metta.diagnostics.typeMismatchMode` values:
+
+- `runtime` (default): runtime-aligned matching; only report mismatches when incompatibility is provable.
+- `strict`: stronger static matching; can report more potential type issues.
+
 ## Stdlib Metadata
 
 Built-in symbols and documentation are loaded from the root `metta-stdlib.json` file:

@@ -99,7 +99,9 @@ const diagnosticRequestVersions = new Map<string, number>();
 const diagnosticSettings: DiagnosticSettings = {
     undefinedFunctions: true,
     undefinedVariables: true,
-    undefinedBindings: true
+    undefinedBindings: true,
+    typeMismatchEnabled: true,
+    typeMismatchMode: 'runtime'
 };
 
 function nextDiagnosticResultId(): string {
@@ -170,15 +172,23 @@ async function refreshDiagnosticSettings(): Promise<void> {
     const nextUndefinedFunctions = diagnosticsConfig.undefinedFunctions !== false;
     const nextUndefinedVariables = diagnosticsConfig.undefinedVariables !== false;
     const nextUndefinedBindings = diagnosticsConfig.undefinedBindings !== false;
+    const nextTypeMismatchEnabled = diagnosticsConfig.typeMismatchEnabled !== false;
+    const nextTypeMismatchMode = diagnosticsConfig.typeMismatchMode === 'strict'
+        ? 'strict'
+        : 'runtime';
 
     const changed =
         diagnosticSettings.undefinedFunctions !== nextUndefinedFunctions ||
         diagnosticSettings.undefinedVariables !== nextUndefinedVariables ||
-        diagnosticSettings.undefinedBindings !== nextUndefinedBindings;
+        diagnosticSettings.undefinedBindings !== nextUndefinedBindings ||
+        diagnosticSettings.typeMismatchEnabled !== nextTypeMismatchEnabled ||
+        diagnosticSettings.typeMismatchMode !== nextTypeMismatchMode;
 
     diagnosticSettings.undefinedFunctions = nextUndefinedFunctions;
     diagnosticSettings.undefinedVariables = nextUndefinedVariables;
     diagnosticSettings.undefinedBindings = nextUndefinedBindings;
+    diagnosticSettings.typeMismatchEnabled = nextTypeMismatchEnabled;
+    diagnosticSettings.typeMismatchMode = nextTypeMismatchMode;
 
     if (changed) {
         diagnosticSettingsRevision += 1;

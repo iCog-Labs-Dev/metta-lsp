@@ -49,6 +49,24 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Enable diagnostics for undefined binding variables or functions."
+                },
+                "metta.diagnostics.typeMismatchEnabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable diagnostics for type mismatches."
+                },
+                "metta.diagnostics.typeMismatchMode": {
+                    "type": "string",
+                    "default": "runtime",
+                    "enum": [
+                        "runtime",
+                        "strict"
+                    ],
+                    "markdownEnumDescriptions": [
+                        "Runtime-aligned matching that avoids reporting mismatches unless incompatibility is provable.",
+                        "Stricter static matching that reports more potential type errors."
+                    ],
+                    "description": "Controls the type mismatch diagnostic strategy."
                 }
             }
         }
@@ -65,6 +83,8 @@
         "grammar:build": "npm run build --prefix grammar",
         "grammar:test": "npm run test --prefix grammar",
         "grammar:generate-highlights": "npm run generate-highlights --prefix grammar",
+        "eval:mismatch:runtime": "npm run build:server && node scripts/eval-mismatch-quality.mjs --mode runtime",
+        "eval:mismatch:strict": "npm run build:server && node scripts/eval-mismatch-quality.mjs --mode strict",
         "package": "npm run build && vsce package --readme-path EXTENSION.md",
         "vscode:prepublish": "npm run build"
     },

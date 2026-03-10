@@ -54,6 +54,8 @@ export interface DiagnosticSettings {
     undefinedFunctions: boolean;
     undefinedVariables: boolean;
     undefinedBindings: boolean;
+    typeMismatchEnabled: boolean;
+    typeMismatchMode: 'runtime' | 'strict';
 }
 
 export interface AnalyzerLike {
