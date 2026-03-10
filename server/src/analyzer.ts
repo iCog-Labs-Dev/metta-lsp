@@ -598,8 +598,38 @@ export default class Analyzer {
         return visible;
     }
 
+    private ensureVisibleUrisIndexed(sourceUri: string): void {
+        const normalizedSourceUri = normalizeUri(sourceUri);
+        const attempted = new Set<string>();
+        let discoveredNewFiles = true;
+
+        while (discoveredNewFiles) {
+            discoveredNewFiles = false;
+            const visibleUris = this.getVisibleUris(normalizedSourceUri);
+
+            for (const uri of visibleUris) {
+                if (this.indexedContent.has(uri) || attempted.has(uri)) {
+                    continue;
+                }
+                attempted.add(uri);
+
+                const filePath = uriToPath(uri);
+                if (!filePath) continue;
+
+                try {
+                    const content = fs.readFileSync(filePath, 'utf8');
+                    this.indexFile(uri, content);
+                    discoveredNewFiles = true;
+                } catch {
+                    // Ignore unreadable targets; visibility falls back to currently indexed files.
+                }
+            }
+        }
+    }
+
     public getVisibleEntries(symbolName: string, sourceUri: string): SymbolEntry[] {
         const normalizedSourceUri = normalizeUri(sourceUri);
+        this.ensureVisibleUrisIndexed(normalizedSourceUri);
         const cacheKey = `${normalizedSourceUri}\u0000${symbolName}`;
         const cached = this.visibleEntriesCache.get(cacheKey);
         if (cached) {

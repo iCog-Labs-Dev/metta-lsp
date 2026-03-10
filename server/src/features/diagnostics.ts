@@ -47,6 +47,8 @@ export function validateTextDocument(
     settings: Partial<DiagnosticSettings> = {}
 ): Diagnostic[] {
     const diagnosticsSettings: DiagnosticSettings = {
+        duplicateDefinitions: settings.duplicateDefinitions !== false,
+        duplicateDefinitionsMode: settings.duplicateDefinitionsMode === 'global' ? 'global' : 'local',
         undefinedFunctions: settings.undefinedFunctions !== false,
         undefinedVariables: settings.undefinedVariables !== false,
         undefinedBindings: settings.undefinedBindings !== false,
@@ -144,19 +146,33 @@ export function validateTextDocument(
         definitionsBySignature.get(key)?.push(nameNode);
     }
 
-    for (const [key, nodes] of definitionsBySignature.entries()) {
-        if (nodes.length <= 1) continue;
-        const [name, arity] = key.split('::');
-        for (const nameNode of nodes) {
-            diagnostics.push({
-                severity: DiagnosticSeverity.Warning,
-                range: {
-                    start: { line: nameNode.startPosition.row, character: nameNode.startPosition.column },
-                    end: { line: nameNode.endPosition.row, character: nameNode.endPosition.column }
-                },
-                message: `Duplicate definition of '${name}' with ${arity} argument(s) (${nodes.length} definitions in this file)`,
-                source: 'metta-lsp'
-            });
+    if (diagnosticsSettings.duplicateDefinitions) {
+        for (const [key, nodes] of definitionsBySignature.entries()) {
+            const [name, arity] = key.split('::');
+            const parsedArity = Number.parseInt(arity ?? '0', 10);
+            const duplicateCount = diagnosticsSettings.duplicateDefinitionsMode === 'global'
+                ? getVisibleEntries(name)
+                    .filter((entry) => entry.op === '=' && getDefinitionEntryArity(entry) === parsedArity)
+                    .length
+                : nodes.length;
+
+            if (duplicateCount <= 1) continue;
+
+            const message = diagnosticsSettings.duplicateDefinitionsMode === 'global'
+                ? `Duplicate definition of '${name}' with ${arity} argument(s) (${duplicateCount} visible definitions across current and imported files)`
+                : `Duplicate definition of '${name}' with ${arity} argument(s) (${duplicateCount} definitions in this file)`;
+
+            for (const nameNode of nodes) {
+                diagnostics.push({
+                    severity: DiagnosticSeverity.Warning,
+                    range: {
+                        start: { line: nameNode.startPosition.row, character: nameNode.startPosition.column },
+                        end: { line: nameNode.endPosition.row, character: nameNode.endPosition.column }
+                    },
+                    message,
+                    source: 'metta-lsp'
+                });
+            }
         }
     }
 
@@ -1114,6 +1130,12 @@ function getEntryArity(entry: SymbolEntry | undefined | null): number | null {
     }
 
     return null;
+}
+
+function getDefinitionEntryArity(entry: SymbolEntry | undefined | null): number | null {
+    if (!entry || entry.op !== '=') return null;
+    if (Array.isArray(entry.parameters)) return entry.parameters.length;
+    return 0;
 }
 
 function arityFromTypeSignature(typeSignature: string): number | null {

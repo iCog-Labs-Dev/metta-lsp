@@ -51,11 +51,17 @@ export interface ReferenceLocation {
 }
 
 export interface DiagnosticSettings {
+    duplicateDefinitions: boolean;
+    duplicateDefinitionsMode: 'local' | 'global';
     undefinedFunctions: boolean;
     undefinedVariables: boolean;
     undefinedBindings: boolean;
     typeMismatchEnabled: boolean;
     typeMismatchMode: 'runtime' | 'strict';
+}
+
+export interface HoverSettings {
+    userDefinitionComments: boolean;
 }
 
 export interface AnalyzerLike {

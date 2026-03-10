@@ -35,6 +35,29 @@
         "configuration": {
             "title": "MeTTa",
             "properties": {
+                "metta.diagnostics.duplicateDefinitions": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable warnings for duplicate top-level definitions with the same name and arity."
+                },
+                "metta.diagnostics.duplicateDefinitionsMode": {
+                    "type": "string",
+                    "default": "local",
+                    "enum": [
+                        "local",
+                        "global"
+                    ],
+                    "markdownEnumDescriptions": [
+                        "Report duplicates only within the current file.",
+                        "Report duplicates across the current file and imported files visible to it."
+                    ],
+                    "description": "Controls whether duplicate definition detection is local-only or includes imported files."
+                },
+                "metta.hover.userDefinitionComments": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show user-defined function descriptions in hover using comments placed above their definitions."
+                },
                 "metta.diagnostics.undefinedFunctions": {
                     "type": "boolean",
                     "default": false,

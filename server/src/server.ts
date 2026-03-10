@@ -40,7 +40,7 @@ import { handlePrepareRename, handleRenameRequest } from './features/rename';
 import { handleSemanticTokens } from './features/semantics';
 import { handleSignatureHelp } from './features/signature';
 import { handleDocumentSymbols } from './features/symbols';
-import type { DiagnosticSettings } from './types';
+import type { DiagnosticSettings, HoverSettings } from './types';
 import { normalizeUri, uriToPath } from './utils';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -97,11 +97,17 @@ const diagnosticSnapshots = new Map<string, DiagnosticSnapshot>();
 const diagnosticRequestVersions = new Map<string, number>();
 
 const diagnosticSettings: DiagnosticSettings = {
+    duplicateDefinitions: true,
+    duplicateDefinitionsMode: 'local',
     undefinedFunctions: true,
     undefinedVariables: true,
     undefinedBindings: true,
     typeMismatchEnabled: true,
     typeMismatchMode: 'runtime'
+};
+
+const hoverSettings: HoverSettings = {
+    userDefinitionComments: true
 };
 
 function nextDiagnosticResultId(): string {
@@ -172,23 +178,36 @@ async function refreshDiagnosticSettings(): Promise<void> {
     const nextUndefinedFunctions = diagnosticsConfig.undefinedFunctions !== false;
     const nextUndefinedVariables = diagnosticsConfig.undefinedVariables !== false;
     const nextUndefinedBindings = diagnosticsConfig.undefinedBindings !== false;
+    const nextDuplicateDefinitions = diagnosticsConfig.duplicateDefinitions !== false;
+    const nextDuplicateDefinitionsMode = diagnosticsConfig.duplicateDefinitionsMode === 'global'
+        ? 'global'
+        : 'local';
     const nextTypeMismatchEnabled = diagnosticsConfig.typeMismatchEnabled !== false;
     const nextTypeMismatchMode = diagnosticsConfig.typeMismatchMode === 'strict'
         ? 'strict'
         : 'runtime';
+    const hoverConfig = config && typeof config.hover === 'object'
+        ? config.hover as Partial<HoverSettings>
+        : {};
+    const nextUserDefinitionComments = hoverConfig.userDefinitionComments !== false;
 
     const changed =
+        diagnosticSettings.duplicateDefinitions !== nextDuplicateDefinitions ||
+        diagnosticSettings.duplicateDefinitionsMode !== nextDuplicateDefinitionsMode ||
         diagnosticSettings.undefinedFunctions !== nextUndefinedFunctions ||
         diagnosticSettings.undefinedVariables !== nextUndefinedVariables ||
         diagnosticSettings.undefinedBindings !== nextUndefinedBindings ||
         diagnosticSettings.typeMismatchEnabled !== nextTypeMismatchEnabled ||
         diagnosticSettings.typeMismatchMode !== nextTypeMismatchMode;
 
+    diagnosticSettings.duplicateDefinitions = nextDuplicateDefinitions;
+    diagnosticSettings.duplicateDefinitionsMode = nextDuplicateDefinitionsMode;
     diagnosticSettings.undefinedFunctions = nextUndefinedFunctions;
     diagnosticSettings.undefinedVariables = nextUndefinedVariables;
     diagnosticSettings.undefinedBindings = nextUndefinedBindings;
     diagnosticSettings.typeMismatchEnabled = nextTypeMismatchEnabled;
     diagnosticSettings.typeMismatchMode = nextTypeMismatchMode;
+    hoverSettings.userDefinitionComments = nextUserDefinitionComments;
 
     if (changed) {
         diagnosticSettingsRevision += 1;
@@ -780,7 +799,7 @@ documents.onDidClose((event) => {
 connection.onCompletion((params) => handleCompletion(params, analyzer));
 connection.onCompletionResolve(handleCompletionResolve);
 connection.onDefinition((params) => handleDefinition(params, documents, analyzer));
-connection.onHover((params) => handleHover(params, documents, analyzer));
+connection.onHover((params) => handleHover(params, documents, analyzer, hoverSettings));
 connection.onReferences((params, token, workDoneProgress, resultProgress) =>
     handleReferences(params, documents, analyzer, workspaceFolders, token, workDoneProgress, resultProgress)
 );

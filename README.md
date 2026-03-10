@@ -137,6 +137,8 @@ Current diagnostics include:
 
 The following VS Code settings control diagnostics behavior:
 
+- `metta.diagnostics.duplicateDefinitions`
+- `metta.diagnostics.duplicateDefinitionsMode`
 - `metta.diagnostics.undefinedFunctions`
 - `metta.diagnostics.undefinedVariables`
 - `metta.diagnostics.undefinedBindings`
@@ -147,6 +149,15 @@ The following VS Code settings control diagnostics behavior:
 
 - `runtime` (default): runtime-aligned matching; only report mismatches when incompatibility is provable.
 - `strict`: stronger static matching; can report more potential type issues.
+
+`metta.diagnostics.duplicateDefinitionsMode` values:
+
+- `local` (default): report duplicates only within the current file.
+- `global`: include duplicates from the current file and its imported files.
+
+Hover behavior setting:
+
+- `metta.hover.userDefinitionComments`: include comments above user-defined functions in hover descriptions.
 
 ## Stdlib Metadata
 

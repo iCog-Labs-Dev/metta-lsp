@@ -2,7 +2,7 @@ import type { Hover, HoverParams, MarkupContent } from 'vscode-languageserver/no
 import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
-import type { SymbolEntry } from '../types';
+import type { HoverSettings, SymbolEntry } from '../types';
 import { BUILTIN_DOCS, normalizeUri } from '../utils';
 
 function splitArrowTypeParts(typeSig: string): string[] {
@@ -31,7 +31,8 @@ function splitArrowTypeParts(typeSig: string): string[] {
 export function handleHover(
     params: HoverParams,
     documents: TextDocuments<TextDocument>,
-    analyzer: Analyzer
+    analyzer: Analyzer,
+    settings: HoverSettings = { userDefinitionComments: true }
 ): Hover | null {
     const document = documents.get(params.textDocument.uri);
     if (!document) return null;
@@ -72,7 +73,9 @@ export function handleHover(
         markdown.push('');
     }
 
-    const description = defEntry?.description ?? typeEntry?.description;
+    const description = settings.userDefinitionComments
+        ? (defEntry?.description ?? typeEntry?.description)
+        : null;
     if (description) {
         markdown.push('**Description**');
         markdown.push('----');
