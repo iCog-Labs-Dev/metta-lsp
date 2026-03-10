@@ -73,6 +73,7 @@ const DIAGNOSTIC_PROVIDER_OPTIONS: DiagnosticOptions = {
 
 const WORKSPACE_DIAGNOSTIC_CHUNK_SIZE = 20;
 const WORKSPACE_DIAGNOSTIC_YIELD_INTERVAL = 8;
+const WORKSPACE_DIAGNOSTIC_WARMUP_YIELD_INTERVAL = 1;
 
 let hasWorkspaceFolderCapability = false;
 let hasConfigurationCapability = false;
@@ -87,6 +88,10 @@ let diagnosticResultCounter = 0;
 let diagnosticSettingsRevision = 0;
 let indexRevision = 0;
 let pullDiagnosticRefreshTimer: NodeJS.Timeout | null = null;
+let workspaceDiagnosticWarmupGeneration = 0;
+let workspaceDiagnosticWarmupInProgress = false;
+let workspaceDiagnosticWarmupPromise: Promise<void> | null = null;
+let workspaceDiagnosticWarmupTimer: NodeJS.Timeout | null = null;
 
 const diagnosticSnapshots = new Map<string, DiagnosticSnapshot>();
 const diagnosticRequestVersions = new Map<string, number>();
@@ -139,6 +144,19 @@ function schedulePullDiagnosticsRefresh(): void {
             connection.console.error(`workspace/diagnostic/refresh failed: ${message}`);
         }
     }, 75);
+}
+
+function scheduleWorkspaceDiagnosticWarmup(delayMs = 250): void {
+    if (!usePullDiagnostics) return;
+
+    if (workspaceDiagnosticWarmupTimer) {
+        clearTimeout(workspaceDiagnosticWarmupTimer);
+    }
+
+    workspaceDiagnosticWarmupTimer = setTimeout(() => {
+        workspaceDiagnosticWarmupTimer = null;
+        startWorkspaceDiagnosticWarmup();
+    }, delayMs);
 }
 
 async function refreshDiagnosticSettings(): Promise<void> {
@@ -277,6 +295,29 @@ function createEmptyDiagnosticSnapshot(uri: string): DiagnosticSnapshot {
     return snapshot;
 }
 
+function isSnapshotCurrent(snapshot: DiagnosticSnapshot, sourceToken?: string): boolean {
+    if (snapshot.settingsRevision !== diagnosticSettingsRevision) return false;
+    if (snapshot.indexRevision !== indexRevision) return false;
+    if (sourceToken !== undefined && snapshot.sourceToken !== sourceToken) return false;
+    return true;
+}
+
+async function computeDocumentDiagnosticSnapshotUntracked(uri: string): Promise<DiagnosticSnapshot> {
+    const loaded = await getDocumentForDiagnostics(uri);
+    if (!loaded) {
+        return createEmptyDiagnosticSnapshot(uri);
+    }
+
+    const normalizedUri = normalizeUri(loaded.document.uri);
+    const existing = diagnosticSnapshots.get(normalizedUri);
+    if (existing && isSnapshotCurrent(existing, loaded.sourceToken)) {
+        return existing;
+    }
+
+    indexDocument(loaded.document.uri, loaded.document.getText());
+    return createDiagnosticSnapshot(loaded.document, loaded.version, loaded.sourceToken);
+}
+
 async function computeDocumentDiagnosticSnapshot(
     uri: string,
     requestKey: string,
@@ -290,7 +331,7 @@ async function computeDocumentDiagnosticSnapshot(
         `Diagnostic request for ${uri} was cancelled`
     );
 
-    const loaded = await getDocumentForDiagnostics(uri);
+    const snapshot = await computeDocumentDiagnosticSnapshotUntracked(uri);
     ensureTrackedDiagnosticRequest(
         requestKey,
         requestVersion,
@@ -298,30 +339,7 @@ async function computeDocumentDiagnosticSnapshot(
         `Diagnostic request for ${uri} was superseded`
     );
 
-    if (!loaded) {
-        return createEmptyDiagnosticSnapshot(uri);
-    }
-
-    const normalizedUri = normalizeUri(loaded.document.uri);
-    const existing = diagnosticSnapshots.get(normalizedUri);
-    if (
-        existing &&
-        existing.settingsRevision === diagnosticSettingsRevision &&
-        existing.indexRevision === indexRevision &&
-        existing.sourceToken === loaded.sourceToken
-    ) {
-        return existing;
-    }
-
-    indexDocument(loaded.document.uri, loaded.document.getText());
-    ensureTrackedDiagnosticRequest(
-        requestKey,
-        requestVersion,
-        token,
-        `Diagnostic request for ${uri} was superseded`
-    );
-
-    return createDiagnosticSnapshot(loaded.document, loaded.version, loaded.sourceToken);
+    return snapshot;
 }
 
 function toDocumentDiagnosticReport(
@@ -358,6 +376,52 @@ function collectWorkspaceDiagnosticUris(): string[] {
     }
 
     return Array.from(uris).sort();
+}
+
+function startWorkspaceDiagnosticWarmup(): void {
+    if (!usePullDiagnostics) return;
+
+    if (workspaceDiagnosticWarmupTimer) {
+        clearTimeout(workspaceDiagnosticWarmupTimer);
+        workspaceDiagnosticWarmupTimer = null;
+    }
+
+    const generation = ++workspaceDiagnosticWarmupGeneration;
+    workspaceDiagnosticWarmupInProgress = true;
+
+    workspaceDiagnosticWarmupPromise = (async () => {
+        try {
+            await refreshDiagnosticSettings();
+            const uris = collectWorkspaceDiagnosticUris();
+
+            for (let index = 0; index < uris.length; index++) {
+                if (generation !== workspaceDiagnosticWarmupGeneration) return;
+
+                const uri = uris[index];
+                const existing = diagnosticSnapshots.get(uri);
+                if (!existing || !isSnapshotCurrent(existing)) {
+                    try {
+                        await computeDocumentDiagnosticSnapshotUntracked(uri);
+                    } catch (error: unknown) {
+                        const message = error instanceof Error ? error.message : String(error);
+                        connection.console.error(`Warmup diagnostics failed for ${uri}: ${message}`);
+                    }
+                }
+
+                if ((index + 1) % WORKSPACE_DIAGNOSTIC_WARMUP_YIELD_INTERVAL === 0) {
+                    await waitForEventLoop();
+                }
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            connection.console.error(`Workspace diagnostic warmup failed: ${message}`);
+        } finally {
+            if (generation !== workspaceDiagnosticWarmupGeneration) return;
+            workspaceDiagnosticWarmupInProgress = false;
+            workspaceDiagnosticWarmupPromise = null;
+            schedulePullDiagnosticsRefresh();
+        }
+    })();
 }
 
 function toWorkspaceDiagnosticReportItem(
@@ -438,6 +502,10 @@ async function runWorkspaceDiagnosticPull(
         const uris = collectWorkspaceDiagnosticUris();
         const buffered: WorkspaceDocumentDiagnosticReport[] = [];
         const results: WorkspaceDocumentDiagnosticReport[] = [];
+        const canServeWarmupCacheOnly = typeof resultProgress !== 'undefined';
+        if (canServeWarmupCacheOnly && !workspaceDiagnosticWarmupInProgress) {
+            startWorkspaceDiagnosticWarmup();
+        }
 
         for (let index = 0; index < uris.length; index++) {
             if (index > 0 && index % WORKSPACE_DIAGNOSTIC_YIELD_INTERVAL === 0) {
@@ -452,17 +520,25 @@ async function runWorkspaceDiagnosticPull(
             );
 
             const uri = uris[index];
-            let snapshot: DiagnosticSnapshot;
-            try {
-                snapshot = await computeDocumentDiagnosticSnapshot(uri, requestKey, requestVersion, token);
-            } catch (error: unknown) {
-                if (error instanceof ResponseError) {
-                    throw error;
-                }
+            let snapshot: DiagnosticSnapshot | null = null;
 
-                const message = error instanceof Error ? error.message : String(error);
-                connection.console.error(`Skipping diagnostics for ${uri}: ${message}`);
-                snapshot = createEmptyDiagnosticSnapshot(uri);
+            if (canServeWarmupCacheOnly) {
+                const cached = diagnosticSnapshots.get(uri);
+                if (cached && isSnapshotCurrent(cached)) {
+                    snapshot = cached;
+                }
+            } else {
+                try {
+                    snapshot = await computeDocumentDiagnosticSnapshot(uri, requestKey, requestVersion, token);
+                } catch (error: unknown) {
+                    if (error instanceof ResponseError) {
+                        throw error;
+                    }
+
+                    const message = error instanceof Error ? error.message : String(error);
+                    connection.console.error(`Skipping diagnostics for ${uri}: ${message}`);
+                    snapshot = createEmptyDiagnosticSnapshot(uri);
+                }
             }
             ensureTrackedDiagnosticRequest(
                 requestKey,
@@ -471,14 +547,16 @@ async function runWorkspaceDiagnosticPull(
                 'Workspace diagnostics request was superseded'
             );
 
-            const reportItem = toWorkspaceDiagnosticReportItem(snapshot, previousResultIds.get(uri));
-            if (resultProgress) {
-                buffered.push(reportItem);
-                if (buffered.length >= WORKSPACE_DIAGNOSTIC_CHUNK_SIZE) {
-                    resultProgress.report({ items: buffered.splice(0) });
+            if (snapshot) {
+                const reportItem = toWorkspaceDiagnosticReportItem(snapshot, previousResultIds.get(uri));
+                if (resultProgress) {
+                    buffered.push(reportItem);
+                    if (buffered.length >= WORKSPACE_DIAGNOSTIC_CHUNK_SIZE) {
+                        resultProgress.report({ items: buffered.splice(0) });
+                    }
+                } else {
+                    results.push(reportItem);
                 }
-            } else {
-                results.push(reportItem);
             }
 
             const percentage = uris.length === 0 ? 100 : Math.round(((index + 1) / uris.length) * 100);
@@ -529,7 +607,11 @@ async function registerDiagnosticProviderDynamically(): Promise<void> {
 
 async function scanWorkspaceAndRefreshDiagnostics(folders: WorkspaceFolder[]): Promise<void> {
     await analyzer.scanWorkspace(folders);
-    schedulePullDiagnosticsRefresh();
+
+    if (usePullDiagnostics) {
+        startWorkspaceDiagnosticWarmup();
+        schedulePullDiagnosticsRefresh();
+    }
 }
 
 function sendPushDiagnostics(document: TextDocument): void {
@@ -649,6 +731,7 @@ connection.onDidChangeConfiguration(async () => {
             sendPushDiagnostics(document);
         }
     } else {
+        startWorkspaceDiagnosticWarmup();
         schedulePullDiagnosticsRefresh();
     }
 });
@@ -659,6 +742,8 @@ documents.onDidOpen(async (event) => {
     if (usePushDiagnostics) {
         await refreshDiagnosticSettings();
         sendPushDiagnostics(event.document);
+    } else {
+        scheduleWorkspaceDiagnosticWarmup();
     }
 });
 
@@ -668,6 +753,8 @@ documents.onDidChangeContent(async (change) => {
     if (usePushDiagnostics) {
         await refreshDiagnosticSettings();
         sendPushDiagnostics(change.document);
+    } else {
+        scheduleWorkspaceDiagnosticWarmup();
     }
 });
 
