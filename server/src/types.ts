@@ -1,5 +1,6 @@
 import type Parser from 'tree-sitter';
 import type {
+    CancellationToken,
     Connection,
     Position,
     Range,
@@ -73,9 +74,11 @@ export interface AnalyzerLike {
         sourceUri?: string | null,
         sourcePosition?: Position | null,
         documents?: TextDocuments<TextDocument> | null,
-        workspaceFolders?: WorkspaceFolder[]
+        workspaceFolders?: WorkspaceFolder[],
+        token?: CancellationToken | null
     ): ReferenceLocation[];
     getOrParseFile(uri: string, content: string, oldContent?: string | null): ParseCacheEntry | null;
-    indexFile(uri: string, content: string): void;
+    getTreeForDocument(uri: string, content: string): Parser.Tree | null;
+    indexFile(uri: string, content: string): boolean;
     scanWorkspace(folders: WorkspaceFolder[]): Promise<void>;
 }

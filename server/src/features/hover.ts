@@ -3,7 +3,7 @@ import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
 import type { SymbolEntry } from '../types';
-import { BUILTIN_DOCS } from '../utils';
+import { BUILTIN_DOCS, normalizeUri } from '../utils';
 
 function splitArrowTypeParts(typeSig: string): string[] {
     if (!typeSig.startsWith('(-> ')) return [];
@@ -37,7 +37,9 @@ export function handleHover(
     if (!document) return null;
 
     const offset = document.offsetAt(params.position);
-    const tree = analyzer.parser.parse(document.getText());
+    const text = document.getText();
+    const tree = analyzer.getTreeForDocument(normalizeUri(document.uri), text);
+    if (!tree) return null;
     const nodeAtCursor = tree.rootNode.descendantForIndex(offset);
     if (!nodeAtCursor || (nodeAtCursor.type !== 'symbol' && nodeAtCursor.type !== 'variable')) {
         return null;

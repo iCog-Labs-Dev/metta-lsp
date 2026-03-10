@@ -3,7 +3,7 @@ import { DiagnosticSeverity, type Diagnostic } from 'vscode-languageserver/node'
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
 import type { DiagnosticSettings, SymbolEntry } from '../types';
-import { BUILTIN_META, BUILTIN_SYMBOLS, type BuiltinMeta } from '../utils';
+import { BUILTIN_META, BUILTIN_SYMBOLS, normalizeUri, type BuiltinMeta } from '../utils';
 
 type SyntaxNode = Parser.SyntaxNode;
 
@@ -36,10 +36,35 @@ export function validateTextDocument(
     };
 
     const text = document.getText();
-    const sourceUri = document.uri;
-    const tree = analyzer.parser.parse(text);
+    const sourceUri = normalizeUri(document.uri);
+    const tree = analyzer.getTreeForDocument(sourceUri, text);
+    if (!tree) {
+        return [];
+    }
     const diagnostics: Diagnostic[] = [];
     const boundSymbols = collectBoundSymbols(tree.rootNode);
+    const visibleEntriesCache = new Map<string, SymbolEntry[]>();
+    const typedOverloadCache = new Map<string, TypedOverload[]>();
+
+    const getVisibleEntries = (name: string): SymbolEntry[] => {
+        const cached = visibleEntriesCache.get(name);
+        if (cached) {
+            return cached;
+        }
+        const entries = analyzer.getVisibleEntries(name, sourceUri);
+        visibleEntriesCache.set(name, entries);
+        return entries;
+    };
+
+    const getTypedOverloads = (name: string): TypedOverload[] => {
+        const cached = typedOverloadCache.get(name);
+        if (cached) {
+            return cached;
+        }
+        const overloads = collectTypedOverloads(name, getVisibleEntries, BUILTIN_META);
+        typedOverloadCache.set(name, overloads);
+        return overloads;
+    };
 
     traverseTree(tree.rootNode, (node) => {
         if (node.isMissing) {
@@ -169,7 +194,7 @@ export function validateTextDocument(
                 }
             }
 
-            const definitions = analyzer.getVisibleEntries(name, sourceUri);
+            const definitions = getVisibleEntries(name);
             if (!definitions || definitions.length === 0) {
                 diagnostics.push({
                     severity: DiagnosticSeverity.Error,
@@ -214,7 +239,7 @@ export function validateTextDocument(
                 });
             } else if (
                 matchingDefinitions.length > 1 &&
-                !hasTypedOverloadForArity(name, callArity, analyzer, BUILTIN_META, sourceUri)
+                !hasTypedOverloadForArity(name, callArity, getTypedOverloads)
             ) {
                 diagnostics.push({
                     severity: DiagnosticSeverity.Warning,
@@ -259,7 +284,7 @@ export function validateTextDocument(
                 if (BUILTIN_SYMBOLS.has(name)) continue;
                 if (boundSymbols.has(name)) continue;
 
-                const definitions = analyzer.getVisibleEntries(name, sourceUri);
+                const definitions = getVisibleEntries(name);
                 if (definitions && definitions.length > 0) continue;
 
                 if (
@@ -288,12 +313,10 @@ export function validateTextDocument(
 
     validateCallTypeSignatures(
         tree.rootNode,
-        analyzer,
         diagnostics,
-        BUILTIN_META,
-        validOperators,
         boundSymbols,
-        sourceUri
+        getVisibleEntries,
+        getTypedOverloads
     );
 
     if (diagnosticsSettings.undefinedVariables) {
@@ -339,12 +362,10 @@ function isInsideCaseBranches(node: SyntaxNode): boolean {
 
 function validateCallTypeSignatures(
     rootNode: SyntaxNode,
-    analyzer: Analyzer,
     diagnostics: Diagnostic[],
-    builtinMeta: Map<string, BuiltinMeta>,
-    _validOperators: Set<string>,
     boundSymbols: Set<string>,
-    sourceUri: string
+    getVisibleEntries: (name: string) => SymbolEntry[],
+    getTypedOverloads: (name: string) => TypedOverload[]
 ): void {
     const nonCallableForms = new Set([
         '=',
@@ -391,13 +412,13 @@ function validateCallTypeSignatures(
             }
         }
 
-        if (boundSymbols.has(name) && analyzer.getVisibleEntries(name, sourceUri).length === 0) {
+        if (boundSymbols.has(name) && getVisibleEntries(name).length === 0) {
             return;
         }
 
         const args = namedChildren.slice(1);
         const callArity = args.length;
-        const overloads = collectTypedOverloads(name, analyzer, builtinMeta, sourceUri)
+        const overloads = getTypedOverloads(name)
             .filter((overload) => overload.paramTypes.length === callArity);
         if (overloads.length === 0) return;
 
@@ -475,13 +496,12 @@ function collectBoundSymbols(rootNode: SyntaxNode): Set<string> {
 
 function collectTypedOverloads(
     name: string,
-    analyzer: Analyzer,
-    builtinMeta: Map<string, BuiltinMeta>,
-    sourceUri: string
+    getVisibleEntries: (name: string) => SymbolEntry[],
+    builtinMeta: Map<string, BuiltinMeta>
 ): TypedOverload[] {
     const overloads: TypedOverload[] = [];
 
-    const entries = analyzer.getVisibleEntries(name, sourceUri);
+    const entries = getVisibleEntries(name);
     for (const entry of entries) {
         if (entry.op !== ':' || !entry.typeSignature) continue;
         const parsed = parseArrowType(entry.typeSignature);
@@ -589,11 +609,9 @@ function isTypeCompatible(expected: string, actual: string): boolean {
 function hasTypedOverloadForArity(
     name: string,
     arity: number,
-    analyzer: Analyzer,
-    builtinMeta: Map<string, BuiltinMeta>,
-    sourceUri: string
+    getTypedOverloads: (name: string) => TypedOverload[]
 ): boolean {
-    return collectTypedOverloads(name, analyzer, builtinMeta, sourceUri)
+    return getTypedOverloads(name)
         .some((overload) => overload.paramTypes.length === arity);
 }
 

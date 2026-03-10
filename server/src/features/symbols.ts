@@ -2,6 +2,7 @@ import type { DocumentSymbolParams, SymbolInformation } from 'vscode-languageser
 import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
+import { normalizeUri } from '../utils';
 
 export function handleDocumentSymbols(
     params: DocumentSymbolParams,
@@ -11,7 +12,9 @@ export function handleDocumentSymbols(
     const document = documents.get(params.textDocument.uri);
     if (!document || !analyzer.symbolQuery) return [];
 
-    const tree = analyzer.parser.parse(document.getText());
+    const text = document.getText();
+    const tree = analyzer.getTreeForDocument(normalizeUri(document.uri), text);
+    if (!tree) return [];
     const matches = analyzer.symbolQuery.matches(tree.rootNode);
     const symbols: SymbolInformation[] = [];
     const seen = new Set<string>();

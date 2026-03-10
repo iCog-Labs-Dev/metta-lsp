@@ -10,6 +10,7 @@ import type {
 import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
+import { normalizeUri } from '../utils';
 
 function findArrowNode(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
     if (node.type === 'list') {
@@ -38,7 +39,9 @@ export function handleSignatureHelp(
     if (!document) return null;
 
     const offset = document.offsetAt(params.position);
-    const tree = analyzer.parser.parse(document.getText());
+    const text = document.getText();
+    const tree = analyzer.getTreeForDocument(normalizeUri(document.uri), text);
+    if (!tree) return null;
 
     let node: Parser.SyntaxNode | null = tree.rootNode.descendantForIndex(offset);
     while (node && node.type !== 'list') {

@@ -6,6 +6,7 @@ import type { SemanticTokens, SemanticTokensParams } from 'vscode-languageserver
 import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
+import { normalizeUri } from '../utils';
 
 const queriesPath = path.resolve(__dirname, '../../../grammar/queries/metta/highlights.scm');
 let highlightQuery: Parser.Query | null = null;
@@ -45,7 +46,9 @@ export function handleSemanticTokens(
     const document = documents.get(params.textDocument.uri);
     if (!document) return { data: [] };
 
-    const tree = analyzer.parser.parse(document.getText());
+    const text = document.getText();
+    const tree = analyzer.getTreeForDocument(normalizeUri(document.uri), text);
+    if (!tree) return { data: [] };
     const tokens: number[] = [];
 
     if (highlightQuery) {

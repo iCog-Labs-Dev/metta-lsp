@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
     SymbolKind,
+    type CancellationToken,
     type Connection,
     type Position,
     type Range,
@@ -36,6 +37,9 @@ export default class Analyzer {
     private readonly scopeTrees: Map<string, ScopeTree>;
     private readonly moduleMeta: Map<string, ModuleMeta>;
     private readonly globalModuleRoots: Set<string>;
+    private readonly visibleUrisCache: Map<string, Set<string>>;
+    private readonly visibleEntriesCache: Map<string, SymbolEntry[]>;
+    private readonly indexedContent: Map<string, string>;
     public symbolQuery: Parser.Query | null;
     private scopeQuery: Parser.Query | null;
     private usageQuery: Parser.Query | null;
@@ -50,6 +54,9 @@ export default class Analyzer {
         this.scopeTrees = new Map();
         this.moduleMeta = new Map();
         this.globalModuleRoots = new Set();
+        this.visibleUrisCache = new Map();
+        this.visibleEntriesCache = new Map();
+        this.indexedContent = new Map();
 
         this.symbolQuery = null;
         this.scopeQuery = null;
@@ -209,7 +216,14 @@ export default class Analyzer {
         }
 
         const oldTree = cached?.tree ?? null;
-        const tree = this.parser.parse(content);
+        let tree: Parser.Tree;
+        try {
+            tree = this.parser.parse(content);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.connection.console.error(`Failed to parse ${uri}: ${message}`);
+            return null;
+        }
         const usageIndex = new Map<string, Range[]>();
 
         if (this.usageQuery) {
@@ -252,11 +266,58 @@ export default class Analyzer {
         return cacheEntry;
     }
 
-    public indexFile(uri: string, content: string): void {
+    public getTreeForDocument(uri: string, content: string): Parser.Tree | null {
         uri = normalizeUri(uri);
-        const tree = this.parser.parse(content);
 
-        if (!this.symbolQuery) return;
+        const cached = this.parseCache.get(uri);
+        if (cached && cached.content === content) {
+            return cached.tree;
+        }
+
+        try {
+            const parsed = this.getOrParseFile(uri, content, cached?.content ?? null);
+            if (parsed) return parsed.tree;
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.connection.console.error(`Failed to retrieve cached parse for ${uri}: ${message}`);
+        }
+
+        try {
+            return this.parser.parse(content);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.connection.console.error(`Failed to parse in-memory document ${uri}: ${message}`);
+            return null;
+        }
+    }
+
+    private clearVisibilityCaches(): void {
+        this.visibleUrisCache.clear();
+        this.visibleEntriesCache.clear();
+    }
+
+    public indexFile(uri: string, content: string): boolean {
+        uri = normalizeUri(uri);
+        const previousIndexedContent = this.indexedContent.get(uri);
+        if (previousIndexedContent === content) {
+            return false;
+        }
+
+        let tree: Parser.Tree;
+        try {
+            tree = this.parser.parse(content);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.connection.console.error(`Failed to index ${uri}: ${message}`);
+            return false;
+        }
+
+        this.clearVisibilityCaches();
+
+        if (!this.symbolQuery) {
+            this.indexedContent.set(uri, content);
+            return true;
+        }
         const matches = this.symbolQuery.matches(tree.rootNode);
 
         for (const [name, symbols] of this.globalIndex.entries()) {
@@ -371,6 +432,9 @@ export default class Analyzer {
             existingEntries.push(entry);
             this.globalIndex.set(name, existingEntries);
         }
+
+        this.indexedContent.set(uri, content);
+        return true;
     }
 
     private updateModuleMetadata(uri: string, tree: Parser.Tree, content: string | null = null): void {
@@ -504,6 +568,11 @@ export default class Analyzer {
 
     private getVisibleUris(sourceUri: string): Set<string> {
         const start = normalizeUri(sourceUri);
+        const cached = this.visibleUrisCache.get(start);
+        if (cached) {
+            return cached;
+        }
+
         const visible = new Set<string>([start]);
         const queue: string[] = [start];
 
@@ -525,13 +594,23 @@ export default class Analyzer {
             }
         }
 
+        this.visibleUrisCache.set(start, visible);
         return visible;
     }
 
     public getVisibleEntries(symbolName: string, sourceUri: string): SymbolEntry[] {
+        const normalizedSourceUri = normalizeUri(sourceUri);
+        const cacheKey = `${normalizedSourceUri}\u0000${symbolName}`;
+        const cached = this.visibleEntriesCache.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
         const all = this.globalIndex.get(symbolName) ?? [];
-        const visibleUris = this.getVisibleUris(sourceUri);
-        return all.filter((entry) => visibleUris.has(normalizeUri(entry.uri)));
+        const visibleUris = this.getVisibleUris(normalizedSourceUri);
+        const filtered = all.filter((entry) => visibleUris.has(normalizeUri(entry.uri)));
+        this.visibleEntriesCache.set(cacheKey, filtered);
+        return filtered;
     }
 
     public async scanWorkspace(folders: WorkspaceFolder[]): Promise<void> {
@@ -545,45 +624,96 @@ export default class Analyzer {
     }
 
     public crawlDirectory(dir: string): void {
+        let files: string[];
         try {
-            const files = fs.readdirSync(dir);
-            for (const file of files) {
-                const fullPath = path.join(dir, file);
-                const stat = fs.statSync(fullPath);
-                if (stat.isDirectory()) {
-                    if (file !== 'node_modules' && file !== '.git' && file !== 'vscode-metta') {
-                        this.crawlDirectory(fullPath);
-                    }
-                } else if (file.endsWith('.metta')) {
-                    const content = fs.readFileSync(fullPath, 'utf8');
-                    const uri = normalizeUri(`file:///${fullPath.replace(/\\/g, '/')}`);
-                    this.indexFile(uri, content);
-                }
-            }
+            files = fs.readdirSync(dir);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             this.connection.console.error(`Error crawling directory ${dir}: ${message}`);
+            return;
+        }
+
+        for (const file of files) {
+            const fullPath = path.join(dir, file);
+            let stat: fs.Stats;
+            try {
+                stat = fs.lstatSync(fullPath);
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                this.connection.console.warn(`Skipping path during crawl (${fullPath}): ${message}`);
+                continue;
+            }
+
+            if (stat.isSymbolicLink()) {
+                // Skip symlinks/junctions to avoid invalid reparse points and cycles.
+                continue;
+            }
+
+            if (stat.isDirectory()) {
+                if (file !== 'node_modules' && file !== '.git' && file !== 'vscode-metta') {
+                    this.crawlDirectory(fullPath);
+                }
+                continue;
+            }
+
+            if (!stat.isFile() || !file.endsWith('.metta')) {
+                continue;
+            }
+
+            try {
+                const content = fs.readFileSync(fullPath, 'utf8');
+                const uri = normalizeUri(`file:///${fullPath.replace(/\\/g, '/')}`);
+                this.indexFile(uri, content);
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                this.connection.console.warn(`Skipping file during crawl (${fullPath}): ${message}`);
+            }
         }
     }
 
-    public findAllMettaFiles(dir: string, uriSet: Set<string>): void {
+    public findAllMettaFiles(
+        dir: string,
+        uriSet: Set<string>,
+        token: CancellationToken | null = null
+    ): void {
+        let files: string[];
         try {
-            const files = fs.readdirSync(dir);
-            for (const file of files) {
-                const fullPath = path.join(dir, file);
-                const stat = fs.statSync(fullPath);
-                if (stat.isDirectory()) {
-                    if (file !== 'node_modules' && file !== '.git' && file !== 'vscode-metta') {
-                        this.findAllMettaFiles(fullPath, uriSet);
-                    }
-                } else if (file.endsWith('.metta')) {
-                    const uri = normalizeUri(`file:///${fullPath.replace(/\\/g, '/')}`);
-                    uriSet.add(uri);
-                }
-            }
+            if (token?.isCancellationRequested) return;
+            files = fs.readdirSync(dir);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             this.connection.console.error(`Error finding metta files in ${dir}: ${message}`);
+            return;
+        }
+
+        for (const file of files) {
+            if (token?.isCancellationRequested) return;
+
+            const fullPath = path.join(dir, file);
+            let stat: fs.Stats;
+            try {
+                stat = fs.lstatSync(fullPath);
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                this.connection.console.warn(`Skipping path while gathering files (${fullPath}): ${message}`);
+                continue;
+            }
+
+            if (stat.isSymbolicLink()) {
+                continue;
+            }
+
+            if (stat.isDirectory()) {
+                if (file !== 'node_modules' && file !== '.git' && file !== 'vscode-metta') {
+                    this.findAllMettaFiles(fullPath, uriSet, token);
+                }
+                continue;
+            }
+
+            if (stat.isFile() && file.endsWith('.metta')) {
+                const uri = normalizeUri(`file:///${fullPath.replace(/\\/g, '/')}`);
+                uriSet.add(uri);
+            }
         }
     }
 
@@ -593,7 +723,8 @@ export default class Analyzer {
         sourceUri: string | null = null,
         sourcePosition: Position | null = null,
         documents: TextDocuments<TextDocument> | null = null,
-        workspaceFolders: WorkspaceFolder[] = []
+        workspaceFolders: WorkspaceFolder[] = [],
+        token: CancellationToken | null = null
     ): ReferenceLocation[] {
         const references: ReferenceLocation[] = [];
         const seenKeys = new Set<string>();
@@ -616,13 +747,15 @@ export default class Analyzer {
         }
 
         for (const folder of workspaceFolders) {
+            if (token?.isCancellationRequested) return references;
             const rootPath = uriToPath(folder.uri);
             if (rootPath) {
-                this.findAllMettaFiles(rootPath, allUris);
+                this.findAllMettaFiles(rootPath, allUris, token);
             }
         }
 
         for (const uri of allUris) {
+            if (token?.isCancellationRequested) return references;
             const normalizedFileUri = normalizeUri(uri);
             const filePath = uriToPath(normalizedFileUri);
             if (!filePath || !fs.existsSync(filePath)) continue;
@@ -634,6 +767,7 @@ export default class Analyzer {
                 if (!ranges) continue;
 
                 for (const range of ranges) {
+                    if (token?.isCancellationRequested) return references;
                     const key = `${normalizedFileUri}:${range.start.line}:${range.start.character}`;
                     if (!seenKeys.has(key)) {
                         seenKeys.add(key);
@@ -648,6 +782,7 @@ export default class Analyzer {
 
         if (documents) {
             for (const document of documents.all()) {
+                if (token?.isCancellationRequested) return references;
                 const normalizedDocUri = normalizeUri(document.uri);
                 if (allUris.has(normalizedDocUri)) continue;
 
@@ -658,6 +793,7 @@ export default class Analyzer {
                     if (!ranges) continue;
 
                     for (const range of ranges) {
+                        if (token?.isCancellationRequested) return references;
                         const key = `${normalizedDocUri}:${range.start.line}:${range.start.character}`;
                         if (!seenKeys.has(key)) {
                             seenKeys.add(key);
@@ -679,7 +815,12 @@ export default class Analyzer {
 
                     const refDoc = documents.get(ref.uri) ?? sourceDoc;
                     const refCached = this.getOrParseFile(ref.uri, refDoc.getText());
-                    const refTree = refCached ? refCached.tree : this.parser.parse(refDoc.getText());
+                    const refTree = refCached
+                        ? refCached.tree
+                        : this.getTreeForDocument(ref.uri, refDoc.getText());
+                    if (!refTree) {
+                        return true;
+                    }
                     const refOffset = refDoc.offsetAt(ref.range.start);
                     const refNode = refTree.rootNode.descendantForIndex(refOffset);
 

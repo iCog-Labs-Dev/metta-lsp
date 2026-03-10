@@ -63,7 +63,9 @@ export function handleRenameRequest(
     if (!document) return null;
 
     const offset = document.offsetAt(params.position);
-    const tree = analyzer.parser.parse(document.getText());
+    const text = document.getText();
+    const tree = analyzer.getTreeForDocument(normalizeUri(document.uri), text);
+    if (!tree) return null;
     const nodeAtCursor = tree.rootNode.descendantForIndex(offset);
     if (!nodeAtCursor || (nodeAtCursor.type !== 'symbol' && nodeAtCursor.type !== 'variable')) {
         return null;
@@ -116,7 +118,9 @@ export function handlePrepareRename(
     if (!document) return null;
 
     const offset = document.offsetAt(params.position);
-    const tree = analyzer.parser.parse(document.getText());
+    const text = document.getText();
+    const tree = analyzer.getTreeForDocument(normalizeUri(document.uri), text);
+    if (!tree) return null;
     const nodeAtCursor = tree.rootNode.descendantForIndex(offset);
     if (!nodeAtCursor || (nodeAtCursor.type !== 'symbol' && nodeAtCursor.type !== 'variable')) {
         return null;
