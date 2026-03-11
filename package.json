@@ -106,7 +106,7 @@
             "properties": {
                 "metta.diagnostics.duplicateDefinitions": {
                     "type": "boolean",
-                    "default": true,
+                    "default": false,
                     "description": "Enable warnings for duplicate top-level definitions with the same name and arity."
                 },
                 "metta.diagnostics.duplicateDefinitionsMode": {
