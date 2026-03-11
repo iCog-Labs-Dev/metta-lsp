@@ -63,9 +63,17 @@ interface DiagnosticSnapshot {
 }
 
 interface LoadedDiagnosticDocument {
-    document: TextDocument;
+    uri: string;
+    document: TextDocument | null;
     version: number | null;
     sourceToken: string;
+}
+
+interface UnresolvedTokenSnapshot {
+    diagnostics: Diagnostic[];
+    sourceToken: string;
+    settingsRevision: number;
+    indexRevision: number;
 }
 
 const DIAGNOSTIC_PROVIDER_OPTIONS: DiagnosticOptions = {
@@ -99,6 +107,13 @@ let workspaceDiagnosticWarmupTimer: NodeJS.Timeout | null = null;
 
 const diagnosticSnapshots = new Map<string, DiagnosticSnapshot>();
 const diagnosticRequestVersions = new Map<string, number>();
+const unresolvedTokenSnapshots = new Map<string, UnresolvedTokenSnapshot>();
+const unresolvedTokenMessagePrefixes = [
+    'Undefined function ',
+    'Undefined variable ',
+    'Undefined binding variable or function ',
+    'Undefined type '
+] as const;
 
 const diagnosticSettings: DiagnosticSettings = {
     duplicateDefinitions: true,
@@ -118,6 +133,87 @@ const hoverSettings: HoverSettings = {
 function nextDiagnosticResultId(): string {
     diagnosticResultCounter += 1;
     return `metta-diagnostic-${diagnosticResultCounter}`;
+}
+
+function hashAppendText(seed: number, text: string): number {
+    let hash = seed >>> 0;
+    for (let i = 0; i < text.length; i++) {
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    return hash;
+}
+
+function hashDiagnostics(diagnostics: readonly Diagnostic[]): string {
+    let hash = 2166136261;
+    hash = hashAppendText(hash, `${diagnostics.length}`);
+
+    for (const diagnostic of diagnostics) {
+        hash = hashAppendText(hash, diagnostic.message ?? '');
+        hash = hashAppendText(hash, diagnostic.source ?? '');
+        hash = hashAppendText(hash, `${diagnostic.severity ?? 0}`);
+        hash = hashAppendText(hash, `${diagnostic.code ?? ''}`);
+        hash = hashAppendText(
+            hash,
+            `${diagnostic.range.start.line}:${diagnostic.range.start.character}:${diagnostic.range.end.line}:${diagnostic.range.end.character}`
+        );
+    }
+
+    return hash.toString(16).padStart(8, '0');
+}
+
+function filterUnresolvedDiagnostics(diagnostics: readonly Diagnostic[]): Diagnostic[] {
+    return diagnostics.filter((diagnostic) => {
+        const message = diagnostic.message ?? '';
+        return unresolvedTokenMessagePrefixes.some((prefix) => message.startsWith(prefix));
+    });
+}
+
+function updateUnresolvedTokenSnapshot(
+    uri: string,
+    sourceToken: string,
+    diagnostics: readonly Diagnostic[]
+): Diagnostic[] {
+    const normalizedUri = normalizeUri(uri);
+    const unresolved = filterUnresolvedDiagnostics(diagnostics);
+    unresolvedTokenSnapshots.set(normalizedUri, {
+        diagnostics: unresolved,
+        sourceToken,
+        settingsRevision: diagnosticSettingsRevision,
+        indexRevision
+    });
+    return unresolved;
+}
+
+function getUnresolvedTokenDiagnostics(document: TextDocument): Diagnostic[] {
+    const normalizedUri = normalizeUri(document.uri);
+    const version = typeof document.version === 'number' ? document.version : null;
+    const sourceToken = `open:${version ?? 'null'}`;
+
+    const cached = unresolvedTokenSnapshots.get(normalizedUri);
+    if (
+        cached &&
+        cached.sourceToken === sourceToken &&
+        cached.settingsRevision === diagnosticSettingsRevision &&
+        cached.indexRevision === indexRevision
+    ) {
+        return cached.diagnostics;
+    }
+
+    const snapshot = diagnosticSnapshots.get(normalizedUri);
+    if (snapshot && isSnapshotCurrent(snapshot)) {
+        return updateUnresolvedTokenSnapshot(normalizedUri, sourceToken, snapshot.diagnostics);
+    }
+
+    const diagnostics = validateTextDocument(document, analyzer, {
+        duplicateDefinitions: false,
+        typeMismatchEnabled: false,
+        undefinedFunctions: true,
+        undefinedTypes: false,
+        undefinedVariables: true,
+        undefinedBindings: true
+    });
+    return updateUnresolvedTokenSnapshot(normalizedUri, sourceToken, diagnostics);
 }
 
 function beginTrackedDiagnosticRequest(key: string): number {
@@ -242,6 +338,7 @@ async function getDocumentForDiagnostics(uri: string): Promise<LoadedDiagnosticD
     if (openDocument) {
         const version = typeof openDocument.version === 'number' ? openDocument.version : null;
         return {
+            uri: normalizeUri(openDocument.uri),
             document: openDocument,
             version,
             sourceToken: `open:${version ?? 'null'}`
@@ -253,6 +350,7 @@ async function getDocumentForDiagnostics(uri: string): Promise<LoadedDiagnosticD
     if (normalizedDocument) {
         const version = typeof normalizedDocument.version === 'number' ? normalizedDocument.version : null;
         return {
+            uri: normalizedUri,
             document: normalizedDocument,
             version,
             sourceToken: `open:${version ?? 'null'}`
@@ -263,15 +361,27 @@ async function getDocumentForDiagnostics(uri: string): Promise<LoadedDiagnosticD
     if (!filePath) return null;
 
     try {
-        const [stats, content] = await Promise.all([
-            nodeFs.stat(filePath),
-            nodeFs.readFile(filePath, 'utf8')
-        ]);
+        const stats = await nodeFs.stat(filePath);
         const mtimeMs = Number.isFinite(stats.mtimeMs) ? stats.mtimeMs : 0;
+        const size = Number.isFinite(stats.size) ? stats.size : 0;
+        const sourceToken = `file:${mtimeMs}:${size}`;
+        const existing = diagnosticSnapshots.get(normalizedUri);
+
+        if (existing && isSnapshotCurrent(existing, sourceToken)) {
+            return {
+                uri: normalizedUri,
+                document: null,
+                version: existing.version,
+                sourceToken
+            };
+        }
+
+        const content = await nodeFs.readFile(filePath, 'utf8');
         return {
+            uri: normalizedUri,
             document: TextDocument.create(normalizedUri, 'metta', 0, content),
             version: null,
-            sourceToken: `file:${mtimeMs}:${content.length}`
+            sourceToken
         };
     } catch {
         return null;
@@ -286,7 +396,8 @@ function createDiagnosticSnapshot(
     const normalizedUri = normalizeUri(document.uri);
     const version = reportedVersion;
     const diagnostics = validateTextDocument(document, analyzer, diagnosticSettings);
-    const digest = `${diagnosticSettingsRevision}:${indexRevision}:${sourceToken}:${version ?? 'null'}:${JSON.stringify(diagnostics)}`;
+    updateUnresolvedTokenSnapshot(normalizedUri, sourceToken, diagnostics);
+    const digest = `${diagnosticSettingsRevision}:${indexRevision}:${sourceToken}:${version ?? 'null'}:${hashDiagnostics(diagnostics)}`;
 
     const existing = diagnosticSnapshots.get(normalizedUri);
     const resultId = existing && existing.digest === digest
@@ -329,6 +440,7 @@ function createEmptyDiagnosticSnapshot(uri: string): DiagnosticSnapshot {
     };
 
     diagnosticSnapshots.set(normalizedUri, snapshot);
+    updateUnresolvedTokenSnapshot(normalizedUri, sourceToken, snapshot.diagnostics);
     return snapshot;
 }
 
@@ -345,10 +457,14 @@ async function computeDocumentDiagnosticSnapshotUntracked(uri: string): Promise<
         return createEmptyDiagnosticSnapshot(uri);
     }
 
-    const normalizedUri = normalizeUri(loaded.document.uri);
+    const normalizedUri = normalizeUri(loaded.uri);
     const existing = diagnosticSnapshots.get(normalizedUri);
     if (existing && isSnapshotCurrent(existing, loaded.sourceToken)) {
         return existing;
+    }
+
+    if (!loaded.document) {
+        return existing ?? createEmptyDiagnosticSnapshot(normalizedUri);
     }
 
     indexDocument(loaded.document.uri, loaded.document.getText());
@@ -654,6 +770,9 @@ async function scanWorkspaceAndRefreshDiagnostics(folders: WorkspaceFolder[]): P
 function sendPushDiagnostics(document: TextDocument): void {
     const diagnostics = validateTextDocument(document, analyzer, diagnosticSettings);
     connection.sendDiagnostics({ uri: document.uri, diagnostics });
+    const version = typeof document.version === 'number' ? document.version : null;
+    const sourceToken = `open:${version ?? 'null'}`;
+    updateUnresolvedTokenSnapshot(document.uri, sourceToken, diagnostics);
 }
 
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
@@ -783,7 +902,7 @@ documents.onDidChangeContent(async (change) => {
 
 documents.onDidClose((event) => {
     const normalizedUri = normalizeUri(event.document.uri);
-    analyzer.parseCache.delete(normalizedUri);
+    unresolvedTokenSnapshots.delete(normalizedUri);
 
     if (usePushDiagnostics) {
         connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
@@ -798,7 +917,11 @@ connection.onReferences((params, token, workDoneProgress, resultProgress) =>
     handleReferences(params, documents, analyzer, workspaceFolders, token, workDoneProgress, resultProgress)
 );
 connection.onDocumentSymbol((params) => handleDocumentSymbols(params, documents, analyzer));
-connection.languages.semanticTokens.on((params) => handleSemanticTokens(params, documents, analyzer));
+connection.languages.semanticTokens.on((params) => {
+    const document = documents.get(params.textDocument.uri);
+    const unresolvedDiagnostics = document ? getUnresolvedTokenDiagnostics(document) : [];
+    return handleSemanticTokens(params, documents, analyzer, unresolvedDiagnostics);
+});
 connection.onSignatureHelp((params) => handleSignatureHelp(params, documents, analyzer));
 
 connection.onRenameRequest((params) => handleRenameRequest(params, documents, analyzer, workspaceFolders));

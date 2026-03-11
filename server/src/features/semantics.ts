@@ -2,11 +2,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Parser from 'tree-sitter';
 import Metta from '../../../grammar';
-import type { SemanticTokens, SemanticTokensParams } from 'vscode-languageserver/node';
+import type { Diagnostic, SemanticTokens, SemanticTokensParams } from 'vscode-languageserver/node';
 import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
-import { validateTextDocument } from './diagnostics';
 import { BUILTIN_CONSTANTS, BUILTIN_SYMBOLS, BUILTIN_TYPE_NAMES, normalizeUri } from '../utils';
 
 type SyntaxNode = Parser.SyntaxNode;
@@ -199,7 +198,8 @@ function isBuiltinTypeName(name: string): boolean {
 export function handleSemanticTokens(
     params: SemanticTokensParams,
     documents: TextDocuments<TextDocument>,
-    analyzer: Analyzer
+    analyzer: Analyzer,
+    unresolvedDiagnostics: readonly Diagnostic[] = []
 ): SemanticTokens {
     const document = documents.get(params.textDocument.uri);
     if (!document) return { data: [] };
@@ -274,15 +274,6 @@ export function handleSemanticTokens(
             appendToken(pending, line, char, length, defaultStyle);
         }
     }
-
-    const unresolvedDiagnostics = validateTextDocument(document, analyzer, {
-        duplicateDefinitions: false,
-        typeMismatchEnabled: false,
-        undefinedFunctions: true,
-        undefinedTypes: false,
-        undefinedVariables: true,
-        undefinedBindings: true
-    });
 
     for (const diagnostic of unresolvedDiagnostics) {
         const message = diagnostic.message ?? '';

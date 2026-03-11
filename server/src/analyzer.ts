@@ -29,6 +29,11 @@ interface ScopeCandidate {
     id: string;
 }
 
+interface UriIndexedEntry {
+    symbolName: string;
+    entry: SymbolEntry;
+}
+
 export default class Analyzer {
     public readonly connection: Connection;
     public readonly parser: Parser;
@@ -40,6 +45,10 @@ export default class Analyzer {
     private readonly visibleUrisCache: Map<string, Set<string>>;
     private readonly visibleEntriesCache: Map<string, SymbolEntry[]>;
     private readonly indexedContent: Map<string, string>;
+    private readonly entriesByUri: Map<string, UriIndexedEntry[]>;
+    private readonly workspaceMettaUris: Set<string>;
+    private readonly usageByUri: Map<string, Map<string, Range[]>>;
+    private readonly usageBySymbol: Map<string, ReferenceLocation[]>;
     public symbolQuery: Parser.Query | null;
     private scopeQuery: Parser.Query | null;
     private usageQuery: Parser.Query | null;
@@ -57,6 +66,10 @@ export default class Analyzer {
         this.visibleUrisCache = new Map();
         this.visibleEntriesCache = new Map();
         this.indexedContent = new Map();
+        this.entriesByUri = new Map();
+        this.workspaceMettaUris = new Set();
+        this.usageByUri = new Map();
+        this.usageBySymbol = new Map();
 
         this.symbolQuery = null;
         this.scopeQuery = null;
@@ -194,10 +207,117 @@ export default class Analyzer {
         return scopeTree;
     }
 
+    private buildUsageIndex(tree: Parser.Tree): Map<string, Range[]> {
+        const usageIndex = new Map<string, Range[]>();
+        if (!this.usageQuery) return usageIndex;
+
+        const matches = this.usageQuery.matches(tree.rootNode);
+        for (const match of matches) {
+            const symbolNode = match.captures.find((capture) => capture.name === 'symbol')?.node;
+            if (!symbolNode) continue;
+
+            const name = symbolNode.text;
+            if (!usageIndex.has(name)) {
+                usageIndex.set(name, []);
+            }
+            const ranges = usageIndex.get(name);
+            if (!ranges) continue;
+
+            ranges.push({
+                start: {
+                    line: symbolNode.startPosition.row,
+                    character: symbolNode.startPosition.column
+                },
+                end: {
+                    line: symbolNode.endPosition.row,
+                    character: symbolNode.endPosition.column
+                }
+            });
+        }
+
+        return usageIndex;
+    }
+
+    private clearUsageForUri(uri: string): void {
+        const existingBySymbol = this.usageByUri.get(uri);
+        if (!existingBySymbol) return;
+
+        for (const symbolName of existingBySymbol.keys()) {
+            const refs = this.usageBySymbol.get(symbolName);
+            if (!refs) continue;
+
+            const filtered = refs.filter((ref) => ref.uri !== uri);
+            if (filtered.length === 0) {
+                this.usageBySymbol.delete(symbolName);
+            } else {
+                this.usageBySymbol.set(symbolName, filtered);
+            }
+        }
+
+        this.usageByUri.delete(uri);
+    }
+
+    private updateUsageIndexes(uri: string, usageIndex: Map<string, Range[]>): void {
+        const normalizedUri = normalizeUri(uri);
+        this.clearUsageForUri(normalizedUri);
+        this.usageByUri.set(normalizedUri, usageIndex);
+
+        for (const [symbolName, ranges] of usageIndex.entries()) {
+            if (ranges.length === 0) continue;
+            const refs = this.usageBySymbol.get(symbolName) ?? [];
+            for (const range of ranges) {
+                refs.push({ uri: normalizedUri, range });
+            }
+            this.usageBySymbol.set(symbolName, refs);
+        }
+    }
+
+    private cacheParsedTree(uri: string, content: string, tree: Parser.Tree, timestamp: number): ParseCacheEntry {
+        const normalizedUri = normalizeUri(uri);
+        const oldTree = this.parseCache.get(normalizedUri)?.tree ?? null;
+        const usageIndex = this.buildUsageIndex(tree);
+
+        this.buildScopeTree(normalizedUri, tree);
+        this.updateUsageIndexes(normalizedUri, usageIndex);
+
+        const cacheEntry: ParseCacheEntry = {
+            tree,
+            content,
+            timestamp,
+            usageIndex,
+            oldTree
+        };
+
+        this.parseCache.set(normalizedUri, cacheEntry);
+        return cacheEntry;
+    }
+
+    private ensureParsedContent(uri: string, content: string, timestamp: number): ParseCacheEntry {
+        const normalizedUri = normalizeUri(uri);
+        const cached = this.parseCache.get(normalizedUri);
+        if (cached && cached.content === content) {
+            if (cached.timestamp < timestamp) {
+                cached.timestamp = timestamp;
+            }
+            return cached;
+        }
+
+        const tree = this.parser.parse(content);
+        return this.cacheParsedTree(normalizedUri, content, tree, timestamp);
+    }
+
     public getOrParseFile(uri: string, content: string, oldContent: string | null = null): ParseCacheEntry | null {
         uri = normalizeUri(uri);
         const filePath = uriToPath(uri);
-        if (!filePath) return null;
+        if (!filePath) {
+            try {
+                return this.ensureParsedContent(uri, content, Date.now());
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                this.connection.console.error(`Failed to parse in-memory content for ${uri}: ${message}`);
+                return null;
+            }
+        }
 
         let stats: fs.Stats;
         try {
@@ -215,55 +335,13 @@ export default class Analyzer {
             return cached;
         }
 
-        const oldTree = cached?.tree ?? null;
-        let tree: Parser.Tree;
         try {
-            tree = this.parser.parse(content);
+            return this.ensureParsedContent(uri, content, stats.mtimeMs);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             this.connection.console.error(`Failed to parse ${uri}: ${message}`);
             return null;
         }
-        const usageIndex = new Map<string, Range[]>();
-
-        if (this.usageQuery) {
-            const matches = this.usageQuery.matches(tree.rootNode);
-            for (const match of matches) {
-                const symbolNode = match.captures.find((capture) => capture.name === 'symbol')?.node;
-                if (symbolNode) {
-                    const name = symbolNode.text;
-                    if (!usageIndex.has(name)) {
-                        usageIndex.set(name, []);
-                    }
-                    const ranges = usageIndex.get(name);
-                    if (ranges) {
-                        ranges.push({
-                            start: {
-                                line: symbolNode.startPosition.row,
-                                character: symbolNode.startPosition.column
-                            },
-                            end: {
-                                line: symbolNode.endPosition.row,
-                                character: symbolNode.endPosition.column
-                            }
-                        });
-                    }
-                }
-            }
-        }
-
-        this.buildScopeTree(uri, tree);
-
-        const cacheEntry: ParseCacheEntry = {
-            tree,
-            content,
-            timestamp: stats.mtimeMs,
-            usageIndex,
-            oldTree
-        };
-
-        this.parseCache.set(uri, cacheEntry);
-        return cacheEntry;
     }
 
     public getTreeForDocument(uri: string, content: string): Parser.Tree | null {
@@ -275,18 +353,11 @@ export default class Analyzer {
         }
 
         try {
-            const parsed = this.getOrParseFile(uri, content, cached?.content ?? null);
-            if (parsed) return parsed.tree;
+            const parsed = this.ensureParsedContent(uri, content, Date.now());
+            return parsed.tree;
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             this.connection.console.error(`Failed to retrieve cached parse for ${uri}: ${message}`);
-        }
-
-        try {
-            return this.parser.parse(content);
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.connection.console.error(`Failed to parse in-memory document ${uri}: ${message}`);
             return null;
         }
     }
@@ -296,8 +367,40 @@ export default class Analyzer {
         this.visibleEntriesCache.clear();
     }
 
+    private removeEntriesForUri(uri: string): void {
+        const normalizedUri = normalizeUri(uri);
+        const existingEntries = this.entriesByUri.get(normalizedUri);
+        if (!existingEntries || existingEntries.length === 0) return;
+
+        for (const { symbolName, entry } of existingEntries) {
+            const symbols = this.globalIndex.get(symbolName);
+            if (!symbols || symbols.length === 0) continue;
+
+            const filtered = symbols.filter((existing) =>
+                !(
+                    existing.uri === normalizedUri &&
+                    existing.range.start.line === entry.range.start.line &&
+                    existing.range.start.character === entry.range.start.character &&
+                    existing.range.end.line === entry.range.end.line &&
+                    existing.range.end.character === entry.range.end.character
+                )
+            );
+
+            if (filtered.length === 0) {
+                this.globalIndex.delete(symbolName);
+            } else {
+                this.globalIndex.set(symbolName, filtered);
+            }
+        }
+
+        this.entriesByUri.delete(normalizedUri);
+    }
+
     public indexFile(uri: string, content: string): boolean {
         uri = normalizeUri(uri);
+        if (uri.endsWith('.metta')) {
+            this.workspaceMettaUris.add(uri);
+        }
         const previousIndexedContent = this.indexedContent.get(uri);
         if (previousIndexedContent === content) {
             return false;
@@ -305,7 +408,7 @@ export default class Analyzer {
 
         let tree: Parser.Tree;
         try {
-            tree = this.parser.parse(content);
+            tree = this.ensureParsedContent(uri, content, Date.now()).tree;
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             this.connection.console.error(`Failed to index ${uri}: ${message}`);
@@ -313,6 +416,7 @@ export default class Analyzer {
         }
 
         this.clearVisibilityCaches();
+        this.removeEntriesForUri(uri);
 
         if (!this.symbolQuery) {
             this.indexedContent.set(uri, content);
@@ -320,17 +424,9 @@ export default class Analyzer {
         }
         const matches = this.symbolQuery.matches(tree.rootNode);
 
-        for (const [name, symbols] of this.globalIndex.entries()) {
-            const filtered = symbols.filter((symbol) => symbol.uri !== uri);
-            if (filtered.length === 0) {
-                this.globalIndex.delete(name);
-            } else {
-                this.globalIndex.set(name, filtered);
-            }
-        }
-
         const validOps = new Set(['=', ':', 'macro', 'defmacro']);
         this.updateModuleMetadata(uri, tree, content);
+        const newEntriesForUri: UriIndexedEntry[] = [];
 
         for (const match of matches) {
             const nameNode = match.captures.find((capture) => capture.name === 'name')?.node;
@@ -431,8 +527,10 @@ export default class Analyzer {
             const existingEntries = this.globalIndex.get(name) ?? [];
             existingEntries.push(entry);
             this.globalIndex.set(name, existingEntries);
+            newEntriesForUri.push({ symbolName: name, entry });
         }
 
+        this.entriesByUri.set(uri, newEntriesForUri);
         this.indexedContent.set(uri, content);
         return true;
     }
@@ -743,6 +841,7 @@ export default class Analyzer {
             if (stat.isFile() && file.endsWith('.metta')) {
                 const uri = normalizeUri(`file:///${fullPath.replace(/\\/g, '/')}`);
                 uriSet.add(uri);
+                this.workspaceMettaUris.add(uri);
             }
         }
     }
@@ -758,103 +857,109 @@ export default class Analyzer {
     ): ReferenceLocation[] {
         const references: ReferenceLocation[] = [];
         const seenKeys = new Set<string>();
-
         const definitions = this.globalIndex.get(symbolName) ?? [];
-        if (includeDeclaration) {
-            for (const def of definitions) {
-                const normalizedDefUri = normalizeUri(def.uri);
-                const key = `${normalizedDefUri}:${def.range.start.line}:${def.range.start.character}`;
-                if (!seenKeys.has(key)) {
-                    seenKeys.add(key);
-                    references.push({ uri: normalizedDefUri, range: def.range });
+        const definitionKeys = new Set<string>();
+
+        for (const def of definitions) {
+            const normalizedDefUri = normalizeUri(def.uri);
+            const key = `${normalizedDefUri}:${def.range.start.line}:${def.range.start.character}`;
+            definitionKeys.add(key);
+            if (!includeDeclaration) continue;
+            if (seenKeys.has(key)) continue;
+            seenKeys.add(key);
+            references.push({ uri: normalizedDefUri, range: def.range });
+        }
+
+        const candidateUris = new Set<string>();
+        for (const uri of this.workspaceMettaUris) {
+            candidateUris.add(uri);
+        }
+        for (const def of definitions) {
+            candidateUris.add(normalizeUri(def.uri));
+        }
+        if (sourceUri) {
+            candidateUris.add(normalizeUri(sourceUri));
+        }
+        if (documents) {
+            for (const document of documents.all()) {
+                if (document.languageId === 'metta' || document.uri.endsWith('.metta')) {
+                    candidateUris.add(normalizeUri(document.uri));
                 }
             }
         }
 
-        const allUris = new Set<string>();
-        for (const def of definitions) {
-            allUris.add(def.uri);
-        }
-
-        for (const folder of workspaceFolders) {
-            if (token?.isCancellationRequested) return references;
-            const rootPath = uriToPath(folder.uri);
-            if (rootPath) {
-                this.findAllMettaFiles(rootPath, allUris, token);
+        if (this.workspaceMettaUris.size === 0) {
+            for (const folder of workspaceFolders) {
+                if (token?.isCancellationRequested) return references;
+                const rootPath = uriToPath(folder.uri);
+                if (!rootPath) continue;
+                this.findAllMettaFiles(rootPath, candidateUris, token);
             }
         }
 
-        for (const uri of allUris) {
+        for (const candidateUri of candidateUris) {
             if (token?.isCancellationRequested) return references;
-            const normalizedFileUri = normalizeUri(uri);
-            const filePath = uriToPath(normalizedFileUri);
+            const normalizedCandidateUri = normalizeUri(candidateUri);
+            const openDoc = documents?.get(normalizedCandidateUri) ?? documents?.get(candidateUri);
+            if (openDoc) {
+                this.indexFile(normalizedCandidateUri, openDoc.getText());
+                continue;
+            }
+
+            const filePath = uriToPath(normalizedCandidateUri);
             if (!filePath || !fs.existsSync(filePath)) continue;
+
+            if (this.indexedContent.has(normalizedCandidateUri)) {
+                const cached = this.parseCache.get(normalizedCandidateUri);
+                if (cached) {
+                    try {
+                        const stats = fs.statSync(filePath);
+                        if (cached.timestamp >= stats.mtimeMs) {
+                            continue;
+                        }
+                    } catch {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            }
 
             try {
                 const content = fs.readFileSync(filePath, 'utf8');
-                const cached = this.getOrParseFile(normalizedFileUri, content);
-                const ranges = cached?.usageIndex.get(symbolName);
-                if (!ranges) continue;
-
-                for (const range of ranges) {
-                    if (token?.isCancellationRequested) return references;
-                    const key = `${normalizedFileUri}:${range.start.line}:${range.start.character}`;
-                    if (!seenKeys.has(key)) {
-                        seenKeys.add(key);
-                        references.push({ uri: normalizedFileUri, range });
-                    }
-                }
+                this.indexFile(normalizedCandidateUri, content);
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
                 this.connection.console.error(`Error reading file ${filePath}: ${message}`);
             }
         }
 
-        if (documents) {
-            for (const document of documents.all()) {
-                if (token?.isCancellationRequested) return references;
-                const normalizedDocUri = normalizeUri(document.uri);
-                if (allUris.has(normalizedDocUri)) continue;
-
-                try {
-                    const content = document.getText();
-                    const cached = this.getOrParseFile(normalizedDocUri, content);
-                    const ranges = cached?.usageIndex.get(symbolName);
-                    if (!ranges) continue;
-
-                    for (const range of ranges) {
-                        if (token?.isCancellationRequested) return references;
-                        const key = `${normalizedDocUri}:${range.start.line}:${range.start.character}`;
-                        if (!seenKeys.has(key)) {
-                            seenKeys.add(key);
-                            references.push({ uri: normalizedDocUri, range });
-                        }
-                    }
-                } catch (error: unknown) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    this.connection.console.error(`Error parsing document ${normalizedDocUri}: ${message}`);
-                }
-            }
+        const indexedRefs = this.usageBySymbol.get(symbolName) ?? [];
+        for (const ref of indexedRefs) {
+            if (token?.isCancellationRequested) return references;
+            const normalizedRefUri = normalizeUri(ref.uri);
+            const key = `${normalizedRefUri}:${ref.range.start.line}:${ref.range.start.character}`;
+            if (!includeDeclaration && definitionKeys.has(key)) continue;
+            if (seenKeys.has(key)) continue;
+            seenKeys.add(key);
+            references.push({ uri: normalizedRefUri, range: ref.range });
         }
 
         if (sourceUri && sourcePosition && documents) {
-            const sourceDoc = documents.get(sourceUri);
+            const normalizedSourceUri = normalizeUri(sourceUri);
+            const sourceDoc = documents.get(sourceUri) ?? documents.get(normalizedSourceUri);
             if (sourceDoc) {
                 return references.filter((ref) => {
-                    if (ref.uri !== sourceUri) return true;
+                    const normalizedRefUri = normalizeUri(ref.uri);
+                    if (normalizedRefUri !== normalizedSourceUri) return true;
 
-                    const refDoc = documents.get(ref.uri) ?? sourceDoc;
-                    const refCached = this.getOrParseFile(ref.uri, refDoc.getText());
-                    const refTree = refCached
-                        ? refCached.tree
-                        : this.getTreeForDocument(ref.uri, refDoc.getText());
-                    if (!refTree) {
-                        return true;
-                    }
+                    const refDoc = documents.get(normalizedRefUri) ?? sourceDoc;
+                    const refTree = this.getTreeForDocument(normalizedRefUri, refDoc.getText());
+                    if (!refTree) return true;
+
                     const refOffset = refDoc.offsetAt(ref.range.start);
                     const refNode = refTree.rootNode.descendantForIndex(refOffset);
-
-                    if (refNode && this.isSymbolShadowed(refNode, symbolName, refTree, ref.uri)) {
+                    if (refNode && this.isSymbolShadowed(refNode, symbolName, refTree, normalizedRefUri)) {
                         return false;
                     }
                     return true;

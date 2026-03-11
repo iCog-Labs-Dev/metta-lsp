@@ -7,7 +7,8 @@
             "request": "launch",
             "args": [
                 "--extensionDevelopmentPath=${workspaceFolder}",
-                "--disable-extension=undefined_publisher.metta-extension"
+                "--disable-extensions",
+                "--disable-extension=metta-lang.metta-lsp"
             ],
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"

@@ -18,8 +18,14 @@ export function activate(context: ExtensionContext): void {
     );
 
     const serverOptions: ServerOptions = {
-        run: { module: serverModule, transport: TransportKind.stdio },
-        debug: { module: serverModule, transport: TransportKind.stdio }
+        run: {
+            module: serverModule,
+            transport: TransportKind.stdio
+        },
+        debug: {
+            module: serverModule,
+            transport: TransportKind.stdio
+        }
     };
 
     const clientOptions: LanguageClientOptions = {
