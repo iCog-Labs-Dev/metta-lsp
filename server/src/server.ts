@@ -37,7 +37,11 @@ import {
 import { handleHover } from './features/hover';
 import { handleReferences } from './features/references';
 import { handlePrepareRename, handleRenameRequest } from './features/rename';
-import { handleSemanticTokens } from './features/semantics';
+import {
+    SEMANTIC_TOKEN_MODIFIERS,
+    SEMANTIC_TOKEN_TYPES,
+    handleSemanticTokens
+} from './features/semantics';
 import { handleSignatureHelp } from './features/signature';
 import { handleDocumentSymbols } from './features/symbols';
 import type { DiagnosticSettings, HoverSettings } from './types';
@@ -698,22 +702,8 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     if (supportsSemanticTokens) {
         serverCapabilities.semanticTokensProvider = {
             legend: {
-                tokenTypes: [
-                    'comment',
-                    'string',
-                    'keyword',
-                    'number',
-                    'operator',
-                    'variable',
-                    'function',
-                    'regexp',
-                    'type',
-                    'boolean',
-                    'punctuation',
-                    'parameter',
-                    'property'
-                ],
-                tokenModifiers: []
+                tokenTypes: Array.from(SEMANTIC_TOKEN_TYPES),
+                tokenModifiers: Array.from(SEMANTIC_TOKEN_MODIFIERS)
             },
             full: true
         };

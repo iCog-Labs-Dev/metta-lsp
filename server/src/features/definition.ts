@@ -13,8 +13,9 @@ export function handleDefinition(
     if (!document) return null;
 
     const offset = document.offsetAt(params.position);
+    const sourceUri = normalizeUri(document.uri);
     const text = document.getText();
-    const tree = analyzer.getTreeForDocument(normalizeUri(document.uri), text);
+    const tree = analyzer.getTreeForDocument(sourceUri, text);
     if (!tree) return null;
     const nodeAtCursor = tree.rootNode.descendantForIndex(offset);
     if (!nodeAtCursor || (nodeAtCursor.type !== 'symbol' && nodeAtCursor.type !== 'variable')) {
@@ -22,7 +23,7 @@ export function handleDefinition(
     }
 
     const symbolName = nodeAtCursor.text;
-    const entries = analyzer.globalIndex.get(symbolName);
+    const entries = analyzer.getVisibleEntries(symbolName, sourceUri);
     if (!entries || entries.length === 0) {
         return null;
     }

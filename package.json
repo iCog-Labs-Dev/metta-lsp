@@ -32,6 +32,35 @@
                 "configuration": "./client/language-configuration.json"
             }
         ],
+        "semanticTokenModifiers": [
+            {
+                "id": "undefined",
+                "description": "Marks unresolved references."
+            }
+        ],
+        "semanticTokenScopes": [
+            {
+                "language": "metta",
+                "scopes": {
+                    "function.defaultLibrary": [
+                        "support.function.builtin.metta",
+                        "support.function.builtin"
+                    ],
+                    "function.undefined": [
+                        "invalid.illegal.unresolved.function.metta",
+                        "invalid.illegal"
+                    ],
+                    "variable.undefined": [
+                        "invalid.illegal.unresolved.variable.metta",
+                        "invalid.illegal"
+                    ],
+                    "property.undefined": [
+                        "invalid.illegal.unresolved.binding.metta",
+                        "invalid.illegal"
+                    ]
+                }
+            }
+        ],
         "configuration": {
             "title": "MeTTa",
             "properties": {
