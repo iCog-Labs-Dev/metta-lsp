@@ -31,6 +31,7 @@ export const SEMANTIC_TOKEN_TYPES = [
     'operator',
     'variable',
     'function',
+    'macro',
     'regexp',
     'type',
     'boolean',
@@ -165,8 +166,8 @@ export function handleSemanticTokens(
 
             if (capture.name === 'function.call' && BUILTIN_SYMBOLS.has(node.text)) {
                 appendToken(pending, line, char, length, {
-                    type: 'function',
-                    modifierMask: defaultLibraryModifier,
+                    type: 'macro',
+                    modifierMask: 0,
                     priority: 50
                 });
                 continue;
@@ -176,7 +177,6 @@ export function handleSemanticTokens(
         }
     }
 
-    // Always classify unresolved symbols for coloring, regardless of diagnostic settings.
     const unresolvedDiagnostics = validateTextDocument(document, analyzer, {
         duplicateDefinitions: false,
         typeMismatchEnabled: false,

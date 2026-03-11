@@ -1,0 +1,82 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "MeTTa",
+    "scopeName": "source.metta",
+    "patterns": [
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#strings"
+        },
+        {
+            "include": "#variables"
+        },
+        {
+            "include": "#numbers"
+        },
+        {
+            "include": "#symbols"
+        }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.semicolon.metta",
+                    "match": ";.*$"
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.metta",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.metta",
+                            "match": "\\\\."
+                        }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.metta",
+                    "begin": "'",
+                    "end": "'",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.metta",
+                            "match": "\\\\."
+                        }
+                    ]
+                }
+            ]
+        },
+        "variables": {
+            "patterns": [
+                {
+                    "name": "variable.other.metta",
+                    "match": "\\$[^\\s()\"';]+"
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.metta",
+                    "match": "(?<![\\w.$-])[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?![\\w.$-])"
+                }
+            ]
+        },
+        "symbols": {
+            "patterns": [
+                {
+                    "name": "entity.name.function.metta",
+                    "match": "[^\\s()\"';]+"
+                }
+            ]
+        }
+    }
+}

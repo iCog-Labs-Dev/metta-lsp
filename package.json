@@ -32,6 +32,13 @@
                 "configuration": "./client/language-configuration.json"
             }
         ],
+        "grammars": [
+            {
+                "language": "metta",
+                "scopeName": "source.metta",
+                "path": "./grammar/syntaxes/metta.tmLanguage.json"
+            }
+        ],
         "semanticTokenModifiers": [
             {
                 "id": "undefined",
@@ -42,9 +49,17 @@
             {
                 "language": "metta",
                 "scopes": {
+                    "macro": [
+                        "support.function.builtin.metta",
+                        "support.function.builtin",
+                        "entity.name.function.preprocessor",
+                        "support.function"
+                    ],
                     "function.defaultLibrary": [
                         "support.function.builtin.metta",
-                        "support.function.builtin"
+                        "support.function.builtin",
+                        "support.function",
+                        "entity.name.function"
                     ],
                     "function.undefined": [
                         "invalid.illegal.unresolved.function.metta",
@@ -61,6 +76,18 @@
                 }
             }
         ],
+        "configurationDefaults": {
+            "[metta]": {
+                "editor.semanticHighlighting.enabled": true,
+                "editor.bracketPairColorization.enabled": true
+            },
+            "editor.semanticTokenColorCustomizations": {
+                "enabled": true,
+                "rules": {
+                    "macro:metta": "#C586C0"
+                }
+            }
+        },
         "configuration": {
             "title": "MeTTa",
             "properties": {
