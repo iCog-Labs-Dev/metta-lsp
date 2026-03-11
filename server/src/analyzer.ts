@@ -329,7 +329,7 @@ export default class Analyzer {
             }
         }
 
-        const validOps = new Set(['=', ':', '->', 'macro', 'defmacro']);
+        const validOps = new Set(['=', ':', 'macro', 'defmacro']);
         this.updateModuleMetadata(uri, tree, content);
 
         for (const match of matches) {

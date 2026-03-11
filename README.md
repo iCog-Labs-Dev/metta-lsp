@@ -127,6 +127,7 @@ Current diagnostics include:
 - Syntax errors and missing nodes
 - Duplicate top-level definitions (same name and arity)
 - Undefined function calls
+- Undefined types inside `(: ...)` declarations (optional)
 - Undefined scoped variables in `=`, `let`, and `let*` (including destructured binders like `($h $t)`)
 - Undefined binding symbols (symbols not built-in, user-defined, or introduced by `bind!`)
 - Argument count mismatch for calls
@@ -140,6 +141,7 @@ The following VS Code settings control diagnostics behavior:
 - `metta.diagnostics.duplicateDefinitions`
 - `metta.diagnostics.duplicateDefinitionsMode`
 - `metta.diagnostics.undefinedFunctions`
+- `metta.diagnostics.undefinedTypes`
 - `metta.diagnostics.undefinedVariables`
 - `metta.diagnostics.undefinedBindings`
 - `metta.diagnostics.typeMismatchEnabled`

@@ -104,6 +104,7 @@ const diagnosticSettings: DiagnosticSettings = {
     duplicateDefinitions: true,
     duplicateDefinitionsMode: 'local',
     undefinedFunctions: true,
+    undefinedTypes: false,
     undefinedVariables: true,
     undefinedBindings: true,
     typeMismatchEnabled: true,
@@ -180,6 +181,7 @@ async function refreshDiagnosticSettings(): Promise<void> {
         : {};
 
     const nextUndefinedFunctions = diagnosticsConfig.undefinedFunctions !== false;
+    const nextUndefinedTypes = diagnosticsConfig.undefinedTypes === true;
     const nextUndefinedVariables = diagnosticsConfig.undefinedVariables !== false;
     const nextUndefinedBindings = diagnosticsConfig.undefinedBindings !== false;
     const nextDuplicateDefinitions = diagnosticsConfig.duplicateDefinitions !== false;
@@ -199,6 +201,7 @@ async function refreshDiagnosticSettings(): Promise<void> {
         diagnosticSettings.duplicateDefinitions !== nextDuplicateDefinitions ||
         diagnosticSettings.duplicateDefinitionsMode !== nextDuplicateDefinitionsMode ||
         diagnosticSettings.undefinedFunctions !== nextUndefinedFunctions ||
+        diagnosticSettings.undefinedTypes !== nextUndefinedTypes ||
         diagnosticSettings.undefinedVariables !== nextUndefinedVariables ||
         diagnosticSettings.undefinedBindings !== nextUndefinedBindings ||
         diagnosticSettings.typeMismatchEnabled !== nextTypeMismatchEnabled ||
@@ -207,6 +210,7 @@ async function refreshDiagnosticSettings(): Promise<void> {
     diagnosticSettings.duplicateDefinitions = nextDuplicateDefinitions;
     diagnosticSettings.duplicateDefinitionsMode = nextDuplicateDefinitionsMode;
     diagnosticSettings.undefinedFunctions = nextUndefinedFunctions;
+    diagnosticSettings.undefinedTypes = nextUndefinedTypes;
     diagnosticSettings.undefinedVariables = nextUndefinedVariables;
     diagnosticSettings.undefinedBindings = nextUndefinedBindings;
     diagnosticSettings.typeMismatchEnabled = nextTypeMismatchEnabled;

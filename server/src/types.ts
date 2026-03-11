@@ -54,6 +54,7 @@ export interface DiagnosticSettings {
     duplicateDefinitions: boolean;
     duplicateDefinitionsMode: 'local' | 'global';
     undefinedFunctions: boolean;
+    undefinedTypes: boolean;
     undefinedVariables: boolean;
     undefinedBindings: boolean;
     typeMismatchEnabled: boolean;

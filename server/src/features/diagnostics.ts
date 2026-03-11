@@ -3,7 +3,7 @@ import { DiagnosticSeverity, type Diagnostic } from 'vscode-languageserver/node'
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
 import type { DiagnosticSettings, SymbolEntry } from '../types';
-import { BUILTIN_META, BUILTIN_SYMBOLS, normalizeUri, type BuiltinMeta } from '../utils';
+import { BUILTIN_META, BUILTIN_SYMBOLS, BUILTIN_TYPE_NAMES, normalizeUri, type BuiltinMeta } from '../utils';
 
 type SyntaxNode = Parser.SyntaxNode;
 
@@ -41,6 +41,10 @@ function getHeadSymbol(listNode: SyntaxNode): string | null {
     return symbolNode ? symbolNode.text : null;
 }
 
+function isCallableEntry(entry: SymbolEntry): boolean {
+    return entry.op !== ':' && entry.op !== '->';
+}
+
 export function validateTextDocument(
     document: TextDocument,
     analyzer: Analyzer,
@@ -50,6 +54,7 @@ export function validateTextDocument(
         duplicateDefinitions: settings.duplicateDefinitions !== false,
         duplicateDefinitionsMode: settings.duplicateDefinitionsMode === 'global' ? 'global' : 'local',
         undefinedFunctions: settings.undefinedFunctions !== false,
+        undefinedTypes: settings.undefinedTypes === true,
         undefinedVariables: settings.undefinedVariables !== false,
         undefinedBindings: settings.undefinedBindings !== false,
         typeMismatchEnabled: settings.typeMismatchEnabled !== false,
@@ -195,6 +200,18 @@ export function validateTextDocument(
     ]);
 
     if (diagnosticsSettings.undefinedFunctions) {
+        const reportUndefinedFunction = (symbolNode: SyntaxNode, name: string): void => {
+            diagnostics.push({
+                severity: DiagnosticSeverity.Error,
+                range: {
+                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                },
+                message: `Undefined function '${name}'`,
+                source: 'metta-lsp'
+            });
+        };
+
         traverseTree(tree.rootNode, (node) => {
             if (node.type !== 'list') return;
 
@@ -212,6 +229,7 @@ export function validateTextDocument(
             if (validOperators.has(name)) return;
             if (name.startsWith('$')) return;
             if (isInsideCaseBranches(node)) return;
+            if (isInsideTypeExpression(node)) return;
 
             const parent = node.parent;
             if (parent && parent.type === 'list') {
@@ -230,21 +248,13 @@ export function validateTextDocument(
             }
 
             const definitions = getVisibleEntries(name);
-            if (!definitions || definitions.length === 0) {
-                diagnostics.push({
-                    severity: DiagnosticSeverity.Error,
-                    range: {
-                        start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
-                        end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
-                    },
-                    message: `Undefined function '${name}'`,
-                    source: 'metta-lsp'
-                });
+            const callableDefinitions = definitions.filter(isCallableEntry);
+            if (callableDefinitions.length === 0) {
+                reportUndefinedFunction(symbolNode, name);
                 return;
             }
 
             const callArity = namedChildren.length - 1;
-            const callableDefinitions = definitions.filter((definition) => definition.op !== ':');
             const matchingDefinitions = callableDefinitions.filter((definition) => {
                 const arity = getEntryArity(definition);
                 return arity === null || arity === callArity;
@@ -259,7 +269,6 @@ export function validateTextDocument(
             ).sort((a, b) => a - b);
 
             if (
-                callableDefinitions.length > 0 &&
                 concreteArities.length > 0 &&
                 matchingDefinitions.length === 0
             ) {
@@ -287,12 +296,42 @@ export function validateTextDocument(
                 });
             }
         });
+
+    }
+
+    if (diagnosticsSettings.undefinedTypes) {
+        const reportUndefinedType = (symbolNode: SyntaxNode, name: string): void => {
+            diagnostics.push({
+                severity: DiagnosticSeverity.Error,
+                range: {
+                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                },
+                message: `Undefined type '${name}'`,
+                source: 'metta-lsp'
+            });
+        };
+
+        traverseTree(tree.rootNode, (node) => {
+            if (node.type !== 'list') return;
+            const namedChildren = getNamedChildren(node);
+            if (namedChildren.length < 3) return;
+            if (getHeadSymbol(node) !== ':') return;
+
+            const typeExpression = namedChildren[2] ?? null;
+            validateUndefinedTypesInTypeExpression(
+                typeExpression,
+                getVisibleEntries,
+                reportUndefinedType
+            );
+        });
     }
 
     if (diagnosticsSettings.undefinedBindings) {
         traverseTree(tree.rootNode, (node) => {
             if (node.type !== 'list') return;
             if (isInsideCaseBranches(node)) return;
+            if (isInsideTypeExpression(node)) return;
 
             const namedChildren = getNamedChildren(node);
             if (namedChildren.length === 0) return;
@@ -304,6 +343,9 @@ export function validateTextDocument(
             const headName = headSymbolNode?.text ?? null;
 
             if (headName === 'import!' || headName === 'register-module!') {
+                return;
+            }
+            if (headName === ':') {
                 return;
             }
 
@@ -396,6 +438,88 @@ function isInsideCaseBranches(node: SyntaxNode): boolean {
         current = current.parent;
     }
     return false;
+}
+
+function isDescendantOf(node: SyntaxNode | null, ancestor: SyntaxNode | null): boolean {
+    if (!node || !ancestor) return false;
+    let current: SyntaxNode | null = node;
+    while (current) {
+        if (current === ancestor) return true;
+        current = current.parent;
+    }
+    return false;
+}
+
+function isInsideTypeExpression(node: SyntaxNode): boolean {
+    let current: SyntaxNode | null = node;
+    while (current) {
+        const parent: SyntaxNode | null = current.parent;
+        if (!parent || parent.type !== 'list') {
+            current = parent;
+            continue;
+        }
+
+        const named = getNamedChildren(parent);
+        if (named.length >= 3 && named[0].text === ':' && isDescendantOf(node, named[2])) {
+            return true;
+        }
+        current = parent;
+    }
+    return false;
+}
+
+function isBuiltinTypeName(name: string): boolean {
+    if (!name || name.startsWith('$')) return true;
+    if (name === '->') return true;
+
+    const normalized = normalizeTypeName(name);
+    if (BUILTIN_TYPE_NAMES.has(normalized)) return true;
+    if (UNIVERSAL_TYPE_NAMES.has(normalized)) return true;
+    if (META_TYPE_NAMES.has(normalized as MetaTypeKind)) return true;
+    if (PRIMITIVE_GROUNDED_TYPES.has(normalized)) return true;
+    return false;
+}
+
+function hasVisibleTypeDefinition(
+    name: string,
+    getVisibleEntries: (name: string) => SymbolEntry[]
+): boolean {
+    return getVisibleEntries(name).some((entry) => entry.op === ':');
+}
+
+function validateUndefinedTypesInTypeExpression(
+    node: SyntaxNode | null,
+    getVisibleEntries: (name: string) => SymbolEntry[],
+    reportUndefinedType: (symbolNode: SyntaxNode, name: string) => void
+): void {
+    if (!node) return;
+
+    if (node.type === 'atom') {
+        const symbolNode = node.children.find((child) => child.type === 'symbol');
+        if (!symbolNode) return;
+
+        const name = symbolNode.text;
+        if (name.startsWith('$')) return;
+        if (isBuiltinTypeName(name)) return;
+        if (hasVisibleTypeDefinition(name, getVisibleEntries)) return;
+        reportUndefinedType(symbolNode, name);
+        return;
+    }
+
+    if (node.type !== 'list') return;
+
+    const named = getNamedChildren(node);
+    if (named.length === 0) return;
+    const headName = getHeadSymbol(node);
+    const startIndex = headName === '->' ? 1 : 0;
+
+    for (let i = startIndex; i < named.length; i++) {
+        validateUndefinedTypesInTypeExpression(
+            named[i],
+            getVisibleEntries,
+            reportUndefinedType
+        );
+    }
 }
 
 function validateCallTypeSignatures(

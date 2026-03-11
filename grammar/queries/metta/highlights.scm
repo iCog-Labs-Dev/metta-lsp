@@ -24,7 +24,7 @@
 ; (: func_name type_expr)
 (list
   head: (atom (symbol) @operator (#eq? @operator ":"))
-  argument: (atom (symbol) @function.definition))
+  argument: (atom (symbol) @type))
 
 ; Function calls (fallback for other lists)
 (list

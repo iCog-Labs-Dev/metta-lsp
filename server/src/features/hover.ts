@@ -1,9 +1,79 @@
+import type Parser from 'tree-sitter';
 import type { Hover, HoverParams, MarkupContent } from 'vscode-languageserver/node';
 import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
 import type { HoverSettings, SymbolEntry } from '../types';
 import { BUILTIN_DOCS, normalizeUri } from '../utils';
+
+type SyntaxNode = Parser.SyntaxNode;
+
+function getNamedChildren(node: SyntaxNode): SyntaxNode[] {
+    return node.children.filter((child) => child.type === 'atom' || child.type === 'list');
+}
+
+function getHeadSymbol(listNode: SyntaxNode): string | null {
+    if (listNode.type !== 'list') return null;
+    const named = getNamedChildren(listNode);
+    if (named.length === 0 || named[0].type !== 'atom') return null;
+    const symbolNode = named[0].children.find((child) => child.type === 'symbol');
+    return symbolNode ? symbolNode.text : null;
+}
+
+function isDescendantOf(node: SyntaxNode | null, ancestor: SyntaxNode | null): boolean {
+    if (!node || !ancestor) return false;
+    let current: SyntaxNode | null = node;
+    while (current) {
+        if (current === ancestor) return true;
+        current = current.parent;
+    }
+    return false;
+}
+
+function isInsideTypeExpression(node: SyntaxNode): boolean {
+    let current: SyntaxNode | null = node;
+    while (current) {
+        const parent: SyntaxNode | null = current.parent;
+        if (!parent || parent.type !== 'list') {
+            current = parent;
+            continue;
+        }
+
+        const named = getNamedChildren(parent);
+        if (named.length >= 3 && getHeadSymbol(parent) === ':' && isDescendantOf(node, named[2])) {
+            return true;
+        }
+        current = parent;
+    }
+    return false;
+}
+
+function isCallableEntryOp(op: string): boolean {
+    return op !== ':' && op !== '->';
+}
+
+function isCallableLookupSite(node: SyntaxNode): boolean {
+    if (node.type !== 'symbol') return false;
+
+    const atom = node.parent;
+    if (!atom || atom.type !== 'atom') return false;
+
+    const list = atom.parent;
+    if (!list || list.type !== 'list') return false;
+
+    const named = getNamedChildren(list);
+    const atomIndex = named.indexOf(atom);
+    if (atomIndex < 0) return false;
+    if (isInsideTypeExpression(list)) return false;
+
+    const head = getHeadSymbol(list);
+    if (atomIndex === 0) {
+        if (!head) return false;
+        const nonCallableHeads = new Set(['=', ':', '->', 'macro', 'defmacro', 'let', 'let*', 'match', 'case', 'if']);
+        return !nonCallableHeads.has(head);
+    }
+    return false;
+}
 
 function splitArrowTypeParts(typeSig: string): string[] {
     if (!typeSig.startsWith('(-> ')) return [];
@@ -58,12 +128,16 @@ export function handleHover(
     }
 
     const entries = analyzer.getVisibleEntries(symbolName, sourceUri);
-    if (!entries || entries.length === 0) return null;
+    const callableEntries = entries.filter((entry) => isCallableEntryOp(entry.op));
+    const effectiveEntries = isCallableLookupSite(nodeAtCursor)
+        ? callableEntries
+        : entries;
+    if (!effectiveEntries || effectiveEntries.length === 0) return null;
 
     const typeEntry = entries.find((entry) => entry.op === ':');
-    const defEntry = entries.find((entry) => entry.op === '=') ??
-        entries.find((entry) => entry.op !== ':') ??
-        entries[0];
+    const defEntry = effectiveEntries.find((entry) => entry.op === '=') ??
+        effectiveEntries.find((entry) => entry.op !== ':') ??
+        effectiveEntries[0];
 
     const markdown: string[] = [`**${symbolName}**`, ''];
 

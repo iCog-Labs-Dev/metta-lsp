@@ -26,10 +26,19 @@ interface BuiltinEntry {
     summary?: string;
     description?: string;
     signatures?: string[];
+    types?: string[];
     params?: BuiltinParam[];
     returns?: BuiltinReturn;
     examples?: BuiltinExample[];
+    overloads?: BuiltinOverload[];
     source?: string;
+}
+
+interface BuiltinOverload {
+    type?: string;
+    signature?: string;
+    params?: BuiltinParam[];
+    returns?: BuiltinReturn;
 }
 
 interface StdlibData {
@@ -45,6 +54,29 @@ export interface BuiltinMeta {
 
 const stdlibData = stdlibDataJson as StdlibData;
 const BUILTIN_ENTRIES: Record<string, BuiltinEntry> = stdlibData.builtins ?? {};
+const DEFAULT_KEYWORDS = ['if', 'let', 'let*', 'match', 'case', 'collapse', 'superpose'];
+const DEFAULT_CONSTANTS = ['True', 'False', 'Nil', 'empty', 'Cons', 'Error'];
+const DEFAULT_TYPE_NAMES = [
+    'Type',
+    'Atom',
+    'Expression',
+    'Symbol',
+    'Variable',
+    'Grounded',
+    'Number',
+    'String',
+    'Bool',
+    'Char',
+    'Integer',
+    'Decimal',
+    'Rational',
+    'Any',
+    'AnyRet',
+    'EagerAny',
+    'LazyAny',
+    'ErrorType',
+    'Unknown'
+];
 
 function getCategory(entry: BuiltinEntry): BuiltinCategory {
     const kind = entry.kind?.toLowerCase();
@@ -125,11 +157,48 @@ function formatBuiltinMarkdown(symbol: string, entry: BuiltinEntry, category: Bu
     return lines.join('\n').trim();
 }
 
+function collectTypeTokens(text: string | undefined, out: Set<string>): void {
+    if (typeof text !== 'string' || text.length === 0) return;
+    const tokens = text.match(/[A-Za-z][A-Za-z0-9_-]*/g) ?? [];
+    for (const token of tokens) {
+        if (/^[A-Z]/.test(token)) {
+            out.add(token);
+        }
+    }
+}
+
 export const BUILTIN_META = new Map<string, BuiltinMeta>();
 export const BUILTIN_DOCS = new Map<string, string>();
+export const BUILTIN_KEYWORDS = new Set<string>();
+export const BUILTIN_CONSTANTS = new Set<string>();
+export const BUILTIN_TYPE_NAMES = new Set<string>(DEFAULT_TYPE_NAMES);
 
 for (const [symbol, entry] of Object.entries(BUILTIN_ENTRIES)) {
     const category = getCategory(entry);
+    if (category === 'keyword') BUILTIN_KEYWORDS.add(symbol);
+    if (category === 'constant') BUILTIN_CONSTANTS.add(symbol);
+
+    if (Array.isArray(entry.signatures)) {
+        for (const signature of entry.signatures) collectTypeTokens(signature, BUILTIN_TYPE_NAMES);
+    }
+    if (Array.isArray(entry.types)) {
+        for (const typeText of entry.types) collectTypeTokens(typeText, BUILTIN_TYPE_NAMES);
+    }
+    if (Array.isArray(entry.params)) {
+        for (const param of entry.params) collectTypeTokens(param.type, BUILTIN_TYPE_NAMES);
+    }
+    collectTypeTokens(entry.returns?.type, BUILTIN_TYPE_NAMES);
+    if (Array.isArray(entry.overloads)) {
+        for (const overload of entry.overloads) {
+            collectTypeTokens(overload.type, BUILTIN_TYPE_NAMES);
+            collectTypeTokens(overload.signature, BUILTIN_TYPE_NAMES);
+            if (Array.isArray(overload.params)) {
+                for (const param of overload.params) collectTypeTokens(param.type, BUILTIN_TYPE_NAMES);
+            }
+            collectTypeTokens(overload.returns?.type, BUILTIN_TYPE_NAMES);
+        }
+    }
+
     BUILTIN_META.set(symbol, {
         category,
         source: entry.source ?? null,
@@ -139,7 +208,14 @@ for (const [symbol, entry] of Object.entries(BUILTIN_ENTRIES)) {
     BUILTIN_DOCS.set(symbol, formatBuiltinMarkdown(symbol, entry, category));
 }
 
-export const BUILTIN_SYMBOLS = new Set<string>(BUILTIN_META.keys());
+for (const keyword of DEFAULT_KEYWORDS) BUILTIN_KEYWORDS.add(keyword);
+for (const constant of DEFAULT_CONSTANTS) BUILTIN_CONSTANTS.add(constant);
+
+export const BUILTIN_SYMBOLS = new Set<string>([
+    ...BUILTIN_META.keys(),
+    ...BUILTIN_KEYWORDS,
+    ...BUILTIN_CONSTANTS
+]);
 
 export function normalizeUri(uri: string): string {
     try {

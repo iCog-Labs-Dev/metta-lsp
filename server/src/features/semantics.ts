@@ -7,7 +7,9 @@ import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
 import { validateTextDocument } from './diagnostics';
-import { BUILTIN_SYMBOLS, normalizeUri } from '../utils';
+import { BUILTIN_CONSTANTS, BUILTIN_SYMBOLS, BUILTIN_TYPE_NAMES, normalizeUri } from '../utils';
+
+type SyntaxNode = Parser.SyntaxNode;
 
 const queriesPath = path.resolve(__dirname, '../../../grammar/queries/metta/highlights.scm');
 let highlightQuery: Parser.Query | null = null;
@@ -80,6 +82,7 @@ const captureStyles: Partial<Record<string, TokenStyle>> = {
     number: { type: 'number', modifierMask: 0, priority: 20 },
     operator: { type: 'operator', modifierMask: 0, priority: 25 },
     variable: { type: 'variable', modifierMask: 0, priority: 20 },
+    type: { type: 'type', modifierMask: 0, priority: 45 },
     'function.call': { type: 'function', modifierMask: 0, priority: 40 },
     'function.definition': { type: 'function', modifierMask: 0, priority: 45 },
     boolean: { type: 'boolean', modifierMask: 0, priority: 20 },
@@ -130,6 +133,69 @@ function dedupeAndSortTokens(tokens: PendingToken[]): PendingToken[] {
     return deduped;
 }
 
+function getNamedChildren(node: SyntaxNode): SyntaxNode[] {
+    return node.children.filter((child) => child.type === 'atom' || child.type === 'list');
+}
+
+function getHeadSymbol(listNode: SyntaxNode): string | null {
+    if (listNode.type !== 'list') return null;
+    const named = getNamedChildren(listNode);
+    if (named.length === 0 || named[0].type !== 'atom') return null;
+    const symbolNode = named[0].children.find((child) => child.type === 'symbol');
+    return symbolNode ? symbolNode.text : null;
+}
+
+function isDescendantOf(node: SyntaxNode | null, ancestor: SyntaxNode | null): boolean {
+    if (!node || !ancestor) return false;
+    let current: SyntaxNode | null = node;
+    while (current) {
+        if (current === ancestor) return true;
+        current = current.parent;
+    }
+    return false;
+}
+
+function isTypeSymbolReference(symbolNode: SyntaxNode): boolean {
+    if (symbolNode.type !== 'symbol') return false;
+    const atomNode = symbolNode.parent;
+    if (!atomNode || atomNode.type !== 'atom') return false;
+
+    let current: SyntaxNode | null = atomNode;
+    while (current) {
+        const parent: SyntaxNode | null = current.parent;
+        if (!parent || parent.type !== 'list') {
+            current = parent;
+            continue;
+        }
+
+        const named = getNamedChildren(parent);
+        if (named.length >= 3 && getHeadSymbol(parent) === ':' && isDescendantOf(atomNode, named[2])) {
+            return true;
+        }
+        current = parent;
+    }
+    return false;
+}
+
+function isTypeDeclarationTarget(symbolNode: SyntaxNode): boolean {
+    if (symbolNode.type !== 'symbol') return false;
+    const atomNode = symbolNode.parent;
+    if (!atomNode || atomNode.type !== 'atom') return false;
+    const listNode = atomNode.parent;
+    if (!listNode || listNode.type !== 'list') return false;
+
+    const named = getNamedChildren(listNode);
+    return getHeadSymbol(listNode) === ':' && named[1] === atomNode;
+}
+
+function isTypeSymbolCandidate(name: string): boolean {
+    return Boolean(name) && !name.startsWith('$') && name !== '->';
+}
+
+function isBuiltinTypeName(name: string): boolean {
+    return BUILTIN_TYPE_NAMES.has(name);
+}
+
 export function handleSemanticTokens(
     params: SemanticTokensParams,
     documents: TextDocuments<TextDocument>,
@@ -164,6 +230,38 @@ export function handleSemanticTokens(
             const length = node.endPosition.column - node.startPosition.column;
             if (length <= 0) continue;
 
+            if (capture.name === 'symbol' && isTypeDeclarationTarget(node)) {
+                appendToken(pending, line, char, length, {
+                    type: 'type',
+                    modifierMask: 0,
+                    priority: 70
+                });
+                continue;
+            }
+
+            if (capture.name === 'symbol' && BUILTIN_CONSTANTS.has(node.text)) {
+                appendToken(pending, line, char, length, {
+                    type: 'boolean',
+                    modifierMask: 0,
+                    priority: 60
+                });
+                continue;
+            }
+
+            if (
+                capture.name === 'symbol' &&
+                isTypeSymbolReference(node) &&
+                isTypeSymbolCandidate(node.text)
+            ) {
+                const builtinType = isBuiltinTypeName(node.text);
+                appendToken(pending, line, char, length, {
+                    type: 'type',
+                    modifierMask: builtinType ? defaultLibraryModifier : 0,
+                    priority: builtinType ? 65 : 60
+                });
+                continue;
+            }
+
             if (capture.name === 'function.call' && BUILTIN_SYMBOLS.has(node.text)) {
                 appendToken(pending, line, char, length, {
                     type: 'macro',
@@ -181,6 +279,7 @@ export function handleSemanticTokens(
         duplicateDefinitions: false,
         typeMismatchEnabled: false,
         undefinedFunctions: true,
+        undefinedTypes: false,
         undefinedVariables: true,
         undefinedBindings: true
     });
@@ -214,6 +313,15 @@ export function handleSemanticTokens(
         if (message.startsWith('Undefined binding variable or function ')) {
             appendToken(pending, line, char, length, {
                 type: 'property',
+                modifierMask: undefinedModifier,
+                priority: 90
+            });
+            continue;
+        }
+
+        if (message.startsWith('Undefined type ')) {
+            appendToken(pending, line, char, length, {
+                type: 'type',
                 modifierMask: undefinedModifier,
                 priority: 90
             });
