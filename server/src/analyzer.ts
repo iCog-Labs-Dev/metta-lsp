@@ -8,6 +8,7 @@ import {
     type Connection,
     type Position,
     type Range,
+    type TextDocumentContentChangeEvent,
     type WorkspaceFolder
 } from 'vscode-languageserver/node';
 import type { TextDocuments } from 'vscode-languageserver/node';
@@ -32,6 +33,11 @@ interface ScopeCandidate {
 interface UriIndexedEntry {
     symbolName: string;
     entry: SymbolEntry;
+}
+
+interface IncrementalEditComputation {
+    edit: Parser.Edit;
+    nextContent: string;
 }
 
 export default class Analyzer {
@@ -292,7 +298,59 @@ export default class Analyzer {
         return cacheEntry;
     }
 
-    private ensureParsedContent(uri: string, content: string, timestamp: number): ParseCacheEntry {
+    private parseIncrementalContent(
+        uri: string,
+        content: string,
+        cached: ParseCacheEntry,
+        changes: readonly TextDocumentContentChangeEvent[]
+    ): Parser.Tree | null {
+        if (changes.length === 0) {
+            return null;
+        }
+
+        let workingContent = cached.content;
+        const queuedEdits: Parser.Edit[] = [];
+
+        for (const change of changes) {
+            if (!('range' in change)) {
+                return null;
+            }
+
+            const incrementalEdit = buildIncrementalEdit(workingContent, change);
+            if (!incrementalEdit) {
+                return null;
+            }
+
+            queuedEdits.push(incrementalEdit.edit);
+            workingContent = incrementalEdit.nextContent;
+        }
+
+        if (workingContent !== content) {
+            return null;
+        }
+
+        const workingTree = cached.tree;
+        for (const edit of queuedEdits) {
+            workingTree.edit(edit);
+        }
+
+        try {
+            return this.parser.parse(content, workingTree);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.connection.console.warn(
+                `Incremental parse failed for ${uri}; falling back to full parse: ${message}`
+            );
+            return null;
+        }
+    }
+
+    private ensureParsedContent(
+        uri: string,
+        content: string,
+        timestamp: number,
+        changes: readonly TextDocumentContentChangeEvent[] | null = null
+    ): ParseCacheEntry {
         const normalizedUri = normalizeUri(uri);
         const cached = this.parseCache.get(normalizedUri);
         if (cached && cached.content === content) {
@@ -300,6 +358,27 @@ export default class Analyzer {
                 cached.timestamp = timestamp;
             }
             return cached;
+        }
+
+        if (cached && changes && changes.length > 0) {
+            const incrementalTree = this.parseIncrementalContent(normalizedUri, content, cached, changes);
+            if (incrementalTree) {
+                return this.cacheParsedTree(normalizedUri, content, incrementalTree, timestamp);
+            }
+        }
+
+        if (cached) {
+            const diffEdit = buildContentDiffEdit(cached.content, content);
+            if (diffEdit) {
+                const workingTree = cached.tree;
+                workingTree.edit(diffEdit.edit);
+                try {
+                    const incrementalTree = this.parser.parse(content, workingTree);
+                    return this.cacheParsedTree(normalizedUri, content, incrementalTree, timestamp);
+                } catch {
+                    // Fall back to a full parse below.
+                }
+            }
         }
 
         const tree = this.parser.parse(content);
@@ -327,9 +406,6 @@ export default class Analyzer {
         }
 
         const cached = this.parseCache.get(uri);
-        if (cached && oldContent !== null && cached.oldTree) {
-            // Placeholder for future incremental edits; currently full reparse is used.
-        }
 
         if (cached && cached.timestamp >= stats.mtimeMs && cached.content === content) {
             return cached;
@@ -396,7 +472,11 @@ export default class Analyzer {
         this.entriesByUri.delete(normalizedUri);
     }
 
-    public indexFile(uri: string, content: string): boolean {
+    public indexFile(
+        uri: string,
+        content: string,
+        changes: readonly TextDocumentContentChangeEvent[] | null = null
+    ): boolean {
         uri = normalizeUri(uri);
         if (uri.endsWith('.metta')) {
             this.workspaceMettaUris.add(uri);
@@ -408,7 +488,7 @@ export default class Analyzer {
 
         let tree: Parser.Tree;
         try {
-            tree = this.ensureParsedContent(uri, content, Date.now()).tree;
+            tree = this.ensureParsedContent(uri, content, Date.now(), changes).tree;
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             this.connection.console.error(`Failed to index ${uri}: ${message}`);
@@ -1078,6 +1158,160 @@ function stripQuotes(text: string): string {
         return text.slice(1, -1);
     }
     return text;
+}
+
+function isEolChar(charCode: number): boolean {
+    return charCode === 13 || charCode === 10;
+}
+
+function computeLineOffsets(content: string): number[] {
+    const lineOffsets: number[] = [0];
+    for (let i = 0; i < content.length; i++) {
+        const ch = content.charCodeAt(i);
+        if (!isEolChar(ch)) {
+            continue;
+        }
+        if (ch === 13 && i + 1 < content.length && content.charCodeAt(i + 1) === 10) {
+            i += 1;
+        }
+        lineOffsets.push(i + 1);
+    }
+    return lineOffsets;
+}
+
+function ensureBeforeEol(content: string, offset: number, lineOffset: number): number {
+    let adjustedOffset = offset;
+    while (adjustedOffset > lineOffset && isEolChar(content.charCodeAt(adjustedOffset - 1))) {
+        adjustedOffset -= 1;
+    }
+    return adjustedOffset;
+}
+
+function offsetAtPosition(content: string, lineOffsets: number[], position: Position): number {
+    if (position.line >= lineOffsets.length) {
+        return content.length;
+    }
+    if (position.line < 0) {
+        return 0;
+    }
+
+    const lineOffset = lineOffsets[position.line];
+    if (position.character <= 0) {
+        return lineOffset;
+    }
+
+    const nextLineOffset = position.line + 1 < lineOffsets.length
+        ? lineOffsets[position.line + 1]
+        : content.length;
+    const rawOffset = Math.min(lineOffset + position.character, nextLineOffset);
+    return ensureBeforeEol(content, rawOffset, lineOffset);
+}
+
+function positionIsAfter(left: Position, right: Position): boolean {
+    if (left.line !== right.line) return left.line > right.line;
+    return left.character > right.character;
+}
+
+function normalizeRange(range: Range): Range {
+    if (positionIsAfter(range.start, range.end)) {
+        return { start: range.end, end: range.start };
+    }
+    return range;
+}
+
+function lineForOffset(lineOffsets: number[], offset: number): number {
+    let low = 0;
+    let high = lineOffsets.length;
+
+    while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if (lineOffsets[mid] > offset) {
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+
+    return Math.max(0, low - 1);
+}
+
+function utf8ByteOffsetAt(content: string, offset: number): number {
+    const clampedOffset = Math.max(0, Math.min(offset, content.length));
+    return Buffer.byteLength(content.slice(0, clampedOffset), 'utf8');
+}
+
+function treePointAt(content: string, lineOffsets: number[], offset: number): Parser.Point {
+    const clampedOffset = Math.max(0, Math.min(offset, content.length));
+    const row = lineForOffset(lineOffsets, clampedOffset);
+    const lineStart = lineOffsets[row] ?? 0;
+    const column = Buffer.byteLength(content.slice(lineStart, clampedOffset), 'utf8');
+    return { row, column };
+}
+
+function buildIncrementalEdit(
+    content: string,
+    change: { range: Range; text: string }
+): IncrementalEditComputation | null {
+    const safeRange = normalizeRange(change.range);
+    const oldLineOffsets = computeLineOffsets(content);
+    const startOffset = offsetAtPosition(content, oldLineOffsets, safeRange.start);
+    const oldEndOffset = offsetAtPosition(content, oldLineOffsets, safeRange.end);
+    if (oldEndOffset < startOffset) {
+        return null;
+    }
+
+    const nextContent = `${content.slice(0, startOffset)}${change.text}${content.slice(oldEndOffset)}`;
+    const newEndOffset = startOffset + change.text.length;
+    const newLineOffsets = computeLineOffsets(nextContent);
+
+    return {
+        edit: {
+            startIndex: utf8ByteOffsetAt(content, startOffset),
+            oldEndIndex: utf8ByteOffsetAt(content, oldEndOffset),
+            newEndIndex: utf8ByteOffsetAt(nextContent, newEndOffset),
+            startPosition: treePointAt(content, oldLineOffsets, startOffset),
+            oldEndPosition: treePointAt(content, oldLineOffsets, oldEndOffset),
+            newEndPosition: treePointAt(nextContent, newLineOffsets, newEndOffset)
+        },
+        nextContent
+    };
+}
+
+function buildContentDiffEdit(oldContent: string, newContent: string): IncrementalEditComputation | null {
+    if (oldContent === newContent) {
+        return null;
+    }
+
+    const minLength = Math.min(oldContent.length, newContent.length);
+    let prefixLength = 0;
+    while (prefixLength < minLength && oldContent.charCodeAt(prefixLength) === newContent.charCodeAt(prefixLength)) {
+        prefixLength += 1;
+    }
+
+    let oldSuffixStart = oldContent.length;
+    let newSuffixStart = newContent.length;
+    while (
+        oldSuffixStart > prefixLength &&
+        newSuffixStart > prefixLength &&
+        oldContent.charCodeAt(oldSuffixStart - 1) === newContent.charCodeAt(newSuffixStart - 1)
+    ) {
+        oldSuffixStart -= 1;
+        newSuffixStart -= 1;
+    }
+
+    const oldLineOffsets = computeLineOffsets(oldContent);
+    const newLineOffsets = computeLineOffsets(newContent);
+    return {
+        edit: {
+            startIndex: utf8ByteOffsetAt(oldContent, prefixLength),
+            oldEndIndex: utf8ByteOffsetAt(oldContent, oldSuffixStart),
+            newEndIndex: utf8ByteOffsetAt(newContent, newSuffixStart),
+            startPosition: treePointAt(oldContent, oldLineOffsets, prefixLength),
+            oldEndPosition: treePointAt(oldContent, oldLineOffsets, oldSuffixStart),
+            newEndPosition: treePointAt(newContent, newLineOffsets, newSuffixStart)
+        },
+        nextContent: newContent
+    };
 }
 
 function getNamedChildren(node: Parser.SyntaxNode): Parser.SyntaxNode[] {

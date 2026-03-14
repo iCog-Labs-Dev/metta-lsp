@@ -5,6 +5,7 @@ import type {
     Position,
     Range,
     SymbolKind,
+    TextDocumentContentChangeEvent,
     WorkspaceFolder
 } from 'vscode-languageserver/node';
 import type { TextDocuments } from 'vscode-languageserver/node';
@@ -89,6 +90,10 @@ export interface AnalyzerLike {
     ): ReferenceLocation[];
     getOrParseFile(uri: string, content: string, oldContent?: string | null): ParseCacheEntry | null;
     getTreeForDocument(uri: string, content: string): Parser.Tree | null;
-    indexFile(uri: string, content: string): boolean;
+    indexFile(
+        uri: string,
+        content: string,
+        changes?: readonly TextDocumentContentChangeEvent[] | null
+    ): boolean;
     scanWorkspace(folders: WorkspaceFolder[]): Promise<void>;
 }
