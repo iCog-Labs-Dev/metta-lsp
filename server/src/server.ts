@@ -112,7 +112,9 @@ const unresolvedTokenMessagePrefixes = [
     'Undefined function ',
     'Undefined variable ',
     'Undefined binding variable or function ',
-    'Undefined type '
+    'Undefined type ',
+    'Unbound space ',
+    'Ambiguous symbol '
 ] as const;
 
 const diagnosticSettings: DiagnosticSettings = {
@@ -123,7 +125,7 @@ const diagnosticSettings: DiagnosticSettings = {
     undefinedVariables: true,
     undefinedBindings: true,
     typeMismatchEnabled: true,
-    typeMismatchMode: 'runtime'
+    argumentCountMismatchEnabled: true
 };
 
 const hoverSettings: HoverSettings = {
@@ -207,11 +209,12 @@ function getUnresolvedTokenDiagnostics(document: TextDocument): Diagnostic[] {
 
     const diagnostics = validateTextDocument(document, analyzer, {
         duplicateDefinitions: false,
-        typeMismatchEnabled: false,
         undefinedFunctions: true,
         undefinedTypes: false,
         undefinedVariables: true,
-        undefinedBindings: true
+        undefinedBindings: true,
+        typeMismatchEnabled: false,
+        argumentCountMismatchEnabled: false
     });
     return updateUnresolvedTokenSnapshot(normalizedUri, sourceToken, diagnostics);
 }
@@ -280,14 +283,12 @@ async function refreshDiagnosticSettings(): Promise<void> {
     const nextUndefinedTypes = diagnosticsConfig.undefinedTypes === true;
     const nextUndefinedVariables = diagnosticsConfig.undefinedVariables !== false;
     const nextUndefinedBindings = diagnosticsConfig.undefinedBindings !== false;
+    const nextTypeMismatchEnabled = diagnosticsConfig.typeMismatchEnabled !== false;
+    const nextArgumentCountMismatchEnabled = diagnosticsConfig.argumentCountMismatchEnabled !== false;
     const nextDuplicateDefinitions = diagnosticsConfig.duplicateDefinitions !== false;
     const nextDuplicateDefinitionsMode = diagnosticsConfig.duplicateDefinitionsMode === 'global'
         ? 'global'
         : 'local';
-    const nextTypeMismatchEnabled = diagnosticsConfig.typeMismatchEnabled !== false;
-    const nextTypeMismatchMode = diagnosticsConfig.typeMismatchMode === 'strict'
-        ? 'strict'
-        : 'runtime';
     const hoverConfig = config && typeof config.hover === 'object'
         ? config.hover as Partial<HoverSettings>
         : {};
@@ -301,7 +302,7 @@ async function refreshDiagnosticSettings(): Promise<void> {
         diagnosticSettings.undefinedVariables !== nextUndefinedVariables ||
         diagnosticSettings.undefinedBindings !== nextUndefinedBindings ||
         diagnosticSettings.typeMismatchEnabled !== nextTypeMismatchEnabled ||
-        diagnosticSettings.typeMismatchMode !== nextTypeMismatchMode;
+        diagnosticSettings.argumentCountMismatchEnabled !== nextArgumentCountMismatchEnabled;
 
     diagnosticSettings.duplicateDefinitions = nextDuplicateDefinitions;
     diagnosticSettings.duplicateDefinitionsMode = nextDuplicateDefinitionsMode;
@@ -310,7 +311,7 @@ async function refreshDiagnosticSettings(): Promise<void> {
     diagnosticSettings.undefinedVariables = nextUndefinedVariables;
     diagnosticSettings.undefinedBindings = nextUndefinedBindings;
     diagnosticSettings.typeMismatchEnabled = nextTypeMismatchEnabled;
-    diagnosticSettings.typeMismatchMode = nextTypeMismatchMode;
+    diagnosticSettings.argumentCountMismatchEnabled = nextArgumentCountMismatchEnabled;
     hoverSettings.userDefinitionComments = nextUserDefinitionComments;
 
     if (changed) {

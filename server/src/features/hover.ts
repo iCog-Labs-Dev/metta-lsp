@@ -49,7 +49,7 @@ function isInsideTypeExpression(node: SyntaxNode): boolean {
 }
 
 function isCallableEntryOp(op: string): boolean {
-    return op !== ':' && op !== '->';
+    return op === '=' || op === 'macro' || op === 'defmacro';
 }
 
 function isCallableLookupSite(node: SyntaxNode): boolean {

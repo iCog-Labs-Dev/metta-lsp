@@ -40,7 +40,8 @@ export function handleSignatureHelp(
 
     const offset = document.offsetAt(params.position);
     const text = document.getText();
-    const tree = analyzer.getTreeForDocument(normalizeUri(document.uri), text);
+    const sourceUri = normalizeUri(document.uri);
+    const tree = analyzer.getTreeForDocument(sourceUri, text);
     if (!tree) return null;
 
     let node: Parser.SyntaxNode | null = tree.rootNode.descendantForIndex(offset);
@@ -53,7 +54,7 @@ export function handleSignatureHelp(
     if (!headNode) return null;
 
     const headName = headNode.text;
-    const entries = analyzer.globalIndex.get(headName);
+    const entries = analyzer.getVisibleEntries(headName, sourceUri);
     if (!entries || entries.length === 0) return null;
 
     const signatures: SignatureInformation[] = entries

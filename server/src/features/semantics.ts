@@ -43,7 +43,8 @@ export const SEMANTIC_TOKEN_TYPES = [
 
 export const SEMANTIC_TOKEN_MODIFIERS = [
     'defaultLibrary',
-    'undefined'
+    'undefined',
+    'returnType'
 ] as const;
 
 interface TokenStyle {
@@ -73,6 +74,7 @@ const modifierBit = (modifier: (typeof SEMANTIC_TOKEN_MODIFIERS)[number]): numbe
 
 const defaultLibraryModifier = modifierBit('defaultLibrary');
 const undefinedModifier = modifierBit('undefined');
+const returnTypeModifier = modifierBit('returnType');
 
 const captureStyles: Partial<Record<string, TokenStyle>> = {
     comment: { type: 'comment', modifierMask: 0, priority: 20 },
@@ -195,6 +197,45 @@ function isBuiltinTypeName(name: string): boolean {
     return BUILTIN_TYPE_NAMES.has(name);
 }
 
+function isHeadSymbol(symbolNode: SyntaxNode): boolean {
+    if (symbolNode.type !== 'symbol') return false;
+    const atomNode = symbolNode.parent;
+    if (!atomNode || atomNode.type !== 'atom') return false;
+    const listNode = atomNode.parent;
+    if (!listNode || listNode.type !== 'list') return false;
+    const named = getNamedChildren(listNode);
+    return named[0] === atomNode;
+}
+
+function getArrowTypeRole(symbolNode: SyntaxNode): 'param' | 'return' | null {
+    if (symbolNode.type !== 'symbol') return null;
+    const atomNode = symbolNode.parent;
+    if (!atomNode || atomNode.type !== 'atom') return null;
+
+    let current: SyntaxNode | null = atomNode;
+    while (current) {
+        const parent: SyntaxNode | null = current.parent;
+        if (!parent || parent.type !== 'list') {
+            current = parent;
+            continue;
+        }
+
+        if (getHeadSymbol(parent) === '->') {
+            const named = getNamedChildren(parent);
+            if (named.length < 2) return null;
+
+            for (let i = 1; i < named.length; i++) {
+                if (!isDescendantOf(atomNode, named[i])) continue;
+                return i === named.length - 1 ? 'return' : 'param';
+            }
+        }
+
+        current = parent;
+    }
+
+    return null;
+}
+
 export function handleSemanticTokens(
     params: SemanticTokensParams,
     documents: TextDocuments<TextDocument>,
@@ -239,6 +280,14 @@ export function handleSemanticTokens(
                 continue;
             }
 
+            if (
+                (capture.name === 'keyword' || capture.name === 'operator') &&
+                node.type === 'symbol' &&
+                !isHeadSymbol(node)
+            ) {
+                continue;
+            }
+
             if (capture.name === 'symbol' && BUILTIN_CONSTANTS.has(node.text)) {
                 appendToken(pending, line, char, length, {
                     type: 'boolean',
@@ -254,10 +303,23 @@ export function handleSemanticTokens(
                 isTypeSymbolCandidate(node.text)
             ) {
                 const builtinType = isBuiltinTypeName(node.text);
+                const arrowRole = getArrowTypeRole(node);
+                const modifierMask =
+                    (builtinType ? defaultLibraryModifier : 0) |
+                    (arrowRole === 'return' ? returnTypeModifier : 0);
                 appendToken(pending, line, char, length, {
                     type: 'type',
-                    modifierMask: builtinType ? defaultLibraryModifier : 0,
+                    modifierMask,
                     priority: builtinType ? 65 : 60
+                });
+                continue;
+            }
+
+            if (capture.name === 'symbol' && node.text.startsWith('&')) {
+                appendToken(pending, line, char, length, {
+                    type: 'property',
+                    modifierMask: node.text === '&self' ? defaultLibraryModifier : 0,
+                    priority: 62
                 });
                 continue;
             }
@@ -302,6 +364,24 @@ export function handleSemanticTokens(
         }
 
         if (message.startsWith('Undefined binding variable or function ')) {
+            appendToken(pending, line, char, length, {
+                type: 'property',
+                modifierMask: undefinedModifier,
+                priority: 90
+            });
+            continue;
+        }
+
+        if (message.startsWith('Unbound space ')) {
+            appendToken(pending, line, char, length, {
+                type: 'property',
+                modifierMask: undefinedModifier,
+                priority: 90
+            });
+            continue;
+        }
+
+        if (message.startsWith('Ambiguous symbol ')) {
             appendToken(pending, line, char, length, {
                 type: 'property',
                 modifierMask: undefinedModifier,

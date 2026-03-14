@@ -41,6 +41,10 @@
         ],
         "semanticTokenModifiers": [
             {
+                "id": "returnType",
+                "description": "Marks return-position type terms in arrow signatures."
+            },
+            {
                 "id": "undefined",
                 "description": "Marks unresolved references."
             }
@@ -65,6 +69,16 @@
                         "support.type.builtin.metta",
                         "support.type",
                         "entity.name.type"
+                    ],
+                    "type.returnType": [
+                        "entity.name.type.return.metta",
+                        "entity.name.type.return",
+                        "entity.name.type"
+                    ],
+                    "type.defaultLibrary.returnType": [
+                        "entity.name.type.return.builtin.metta",
+                        "entity.name.type.return",
+                        "support.type.builtin"
                     ],
                     "type.undefined": [
                         "invalid.illegal.unresolved.type.metta",
@@ -96,6 +110,8 @@
                     "macro:metta": "#C586C0",
                     "type:metta": "#FF6EC7",
                     "type.defaultLibrary:metta": "#4EC9B0",
+                    "type.returnType:metta": "#D16D6D",
+                    "type.defaultLibrary.returnType:metta": "#E3A65E",
                     "boolean:metta": "#569CD6",
                     "property:metta": "#D7BA7D"
                 }
@@ -134,7 +150,7 @@
                 },
                 "metta.diagnostics.undefinedTypes": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Enable diagnostics for undefined types inside ':' type declarations."
                 },
                 "metta.diagnostics.undefinedVariables": {
@@ -149,21 +165,13 @@
                 },
                 "metta.diagnostics.typeMismatchEnabled": {
                     "type": "boolean",
-                    "default": false,
-                    "description": "Enable diagnostics for type mismatches."
+                    "default": true,
+                    "description": "Enable diagnostics for type mismatches in function calls and typed function definitions."
                 },
-                "metta.diagnostics.typeMismatchMode": {
-                    "type": "string",
-                    "default": "runtime",
-                    "enum": [
-                        "runtime",
-                        "strict"
-                    ],
-                    "markdownEnumDescriptions": [
-                        "Runtime-aligned matching that avoids reporting mismatches unless incompatibility is provable.",
-                        "Stricter static matching that reports more potential type errors."
-                    ],
-                    "description": "Controls the type mismatch diagnostic strategy."
+                "metta.diagnostics.argumentCountMismatchEnabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable diagnostics for function argument count mismatches."
                 }
             }
         }
@@ -180,8 +188,6 @@
         "grammar:build": "npm run build --prefix grammar",
         "grammar:test": "npm run test --prefix grammar",
         "grammar:generate-highlights": "npm run generate-highlights --prefix grammar",
-        "eval:mismatch:runtime": "npm run build:server && node scripts/eval-mismatch-quality.mjs --mode runtime",
-        "eval:mismatch:strict": "npm run build:server && node scripts/eval-mismatch-quality.mjs --mode strict",
         "package": "npm run build && vsce package --readme-path EXTENSION.md",
         "vscode:prepublish": "npm run build"
     },

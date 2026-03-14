@@ -489,12 +489,14 @@ export default class Analyzer {
 
             let parameters: string[] = [];
             let typeSignature: string | null = null;
+            let immediateTypeSignature: string | null = null;
 
             if (opText === '=') {
                 const listArgs = innerList.children.filter(
                     (child) => child.type === 'atom' || child.type === 'list'
                 );
                 parameters = listArgs.slice(1).map((child) => child.text.trim());
+                immediateTypeSignature = findImmediateTypeSignature(definitionNode, name);
             } else if (opText === ':' && definitionNode) {
                 const args = definitionNode.children.filter(
                     (child) => child.type === 'list' || child.type === 'atom'
@@ -512,6 +514,7 @@ export default class Analyzer {
                 description: description.length > 0 ? description.join('\n') : null,
                 parameters: parameters.length > 0 ? parameters : null,
                 typeSignature,
+                immediateTypeSignature,
                 range: {
                     start: {
                         line: nameNode.startPosition.row,
@@ -528,6 +531,23 @@ export default class Analyzer {
             existingEntries.push(entry);
             this.globalIndex.set(name, existingEntries);
             newEntriesForUri.push({ symbolName: name, entry });
+        }
+
+        const bindingEntries = collectTopLevelBindingEntries(uri, tree.rootNode);
+        for (const { symbolName, entry } of bindingEntries) {
+            const existingEntries = this.globalIndex.get(symbolName) ?? [];
+            const duplicate = existingEntries.some((existing) =>
+                existing.uri === uri &&
+                existing.range.start.line === entry.range.start.line &&
+                existing.range.start.character === entry.range.start.character &&
+                existing.range.end.line === entry.range.end.line &&
+                existing.range.end.character === entry.range.end.character
+            );
+            if (duplicate) continue;
+
+            existingEntries.push(entry);
+            this.globalIndex.set(symbolName, existingEntries);
+            newEntriesForUri.push({ symbolName, entry });
         }
 
         this.entriesByUri.set(uri, newEntriesForUri);
@@ -1058,6 +1078,117 @@ function stripQuotes(text: string): string {
         return text.slice(1, -1);
     }
     return text;
+}
+
+function getNamedChildren(node: Parser.SyntaxNode): Parser.SyntaxNode[] {
+    return node.children.filter((child) => child.type === 'atom' || child.type === 'list');
+}
+
+function isIgnorableSibling(node: Parser.SyntaxNode | null): boolean {
+    if (!node) return true;
+    if (node.type === 'comment') return true;
+    if (node.type === '\n') return true;
+    return node.text.trim() === '';
+}
+
+function getHeadSymbol(listNode: Parser.SyntaxNode): string | null {
+    if (listNode.type !== 'list') return null;
+    const named = getNamedChildren(listNode);
+    if (named.length === 0 || named[0].type !== 'atom') return null;
+    const symbolNode = named[0].children.find((child) => child.type === 'symbol');
+    return symbolNode ? symbolNode.text : null;
+}
+
+function getAtomSymbol(atomNode: Parser.SyntaxNode | null): string | null {
+    if (!atomNode || atomNode.type !== 'atom') return null;
+    const symbolNode = atomNode.children.find((child) => child.type === 'symbol');
+    return symbolNode ? symbolNode.text : null;
+}
+
+function getAtomSymbolNode(atomNode: Parser.SyntaxNode | null): Parser.SyntaxNode | null {
+    if (!atomNode || atomNode.type !== 'atom') return null;
+    const symbolNode = atomNode.children.find((child) => child.type === 'symbol');
+    return symbolNode ?? null;
+}
+
+function collectTopLevelEvaluatedForms(rootNode: Parser.SyntaxNode): Parser.SyntaxNode[] {
+    const forms: Parser.SyntaxNode[] = [];
+    for (let i = 0; i < rootNode.namedChildCount; i++) {
+        const node = rootNode.namedChild(i);
+        if (!node || node.type !== 'atom') continue;
+
+        const symbolNode = getAtomSymbolNode(node);
+        if (!symbolNode || symbolNode.text !== '!') continue;
+
+        const next = rootNode.namedChild(i + 1);
+        if (next && next.type === 'list') {
+            forms.push(next);
+            i += 1;
+        }
+    }
+    return forms;
+}
+
+function collectTopLevelBindingEntries(
+    uri: string,
+    rootNode: Parser.SyntaxNode
+): Array<{ symbolName: string; entry: SymbolEntry }> {
+    const indexed: Array<{ symbolName: string; entry: SymbolEntry }> = [];
+
+    for (const form of collectTopLevelEvaluatedForms(rootNode)) {
+        if (getHeadSymbol(form) !== 'bind!') continue;
+        const named = getNamedChildren(form);
+        if (named.length < 2) continue;
+
+        const targetAtom = named[1];
+        const symbolNode = getAtomSymbolNode(targetAtom);
+        if (!symbolNode) continue;
+
+        const symbolName = symbolNode.text;
+        const entry: SymbolEntry = {
+            uri,
+            kind: symbolName.startsWith('&') ? SymbolKind.Object : SymbolKind.Variable,
+            context: form.text,
+            op: 'bind!',
+            description: null,
+            parameters: null,
+            typeSignature: null,
+            immediateTypeSignature: null,
+            range: {
+                start: {
+                    line: symbolNode.startPosition.row,
+                    character: symbolNode.startPosition.column
+                },
+                end: {
+                    line: symbolNode.endPosition.row,
+                    character: symbolNode.endPosition.column
+                }
+            }
+        };
+
+        indexed.push({ symbolName, entry });
+    }
+
+    return indexed;
+}
+
+function findImmediateTypeSignature(
+    definitionNode: Parser.SyntaxNode | null,
+    functionName: string
+): string | null {
+    if (!definitionNode) return null;
+    let prev: Parser.SyntaxNode | null = definitionNode.previousSibling;
+    while (prev && isIgnorableSibling(prev)) {
+        prev = prev.previousSibling;
+    }
+    if (!prev || prev.type !== 'list') return null;
+    if (getHeadSymbol(prev) !== ':') return null;
+
+    const named = getNamedChildren(prev);
+    if (named.length < 3) return null;
+    const declaredName = getAtomSymbol(named[1]);
+    if (declaredName !== functionName) return null;
+    return named[2]?.text ?? null;
 }
 
 function traverseTree(node: Parser.SyntaxNode, callback: (node: Parser.SyntaxNode) => void): void {

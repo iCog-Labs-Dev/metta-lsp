@@ -31,7 +31,7 @@ module.exports = grammar({
       $.symbol
     ),
 
-    variable: _ => /\$[^()\s";]+/,
+    variable: _ => /\$[^()\s]+/,
 
     number: _ => token(prec(1, seq(
       optional('-'),
@@ -51,7 +51,7 @@ module.exports = grammar({
       '"'
     )),
 
-    symbol: _ => token(prec(-1, /[^\d\.$()\s";][^()\s";]*/)),
-    comment: _ => token(seq(';', /[^\n\r]*/))
+    symbol: _ => token(prec(-1, /[^()\s;]+/)),
+    comment: _ => token(seq(';', /[^\n]*/))
   }
 });

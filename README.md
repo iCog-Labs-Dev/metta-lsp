@@ -6,11 +6,11 @@ The extension client and language server source are implemented in strict TypeSc
 
 ## Features
 
-- Syntax Highlighting: Tree-sitter powered semantic coloring for keywords, functions, variables, strings, numbers, and operators
-- Diagnostics: real-time checks for syntax, scope, arity, type mismatches, and overload ambiguity
+- Syntax Highlighting: Tree-sitter powered semantic coloring with built-in/unresolved modifiers and arrow-return-type coloring (`type.returnType`)
+- Diagnostics: real-time checks for syntax, scope, bindings/spaces, arity, type contracts, and overload ambiguity
 - Go to Definition: jump to function/type definitions across the workspace
 - Hover Documentation: rich hover info with signatures, descriptions, parameters, and return types
-- Auto-Completion: context-aware suggestions for keywords and project symbols
+- Auto-Completion: context-aware suggestions from built-ins and symbols visible through import/module resolution
 - Find All References: locate symbol usage across the project with scope awareness
 - Rename Symbol: safe workspace-wide renaming with conflict detection
 - Document Symbols: Outline integration for `=`, `:`, `->`, and macro definitions
@@ -42,6 +42,11 @@ npm run build        # typecheck + build server + build client
 npm run build:server # compile server/src/**/*.ts -> server/dist/**/*.js
 npm run build:client # bundle client/src/extension.ts -> dist/extension.js
 npm run watch        # rebuild client bundle on file changes
+npm run server:start # build server and run language server process
+npm run grammar:build
+npm run grammar:test
+npm run grammar:generate
+npm run grammar:generate-highlights
 npm run package      # build + create .vsix
 ```
 
@@ -108,6 +113,8 @@ Provides:
 - Tree-sitter parsing with cache-backed re-parsing
 - Global symbol index from `.scm` query files
 - Scope tree construction for shadowing and local variable analysis
+- Import/module visibility graph for `import!` and `register-module!` resolution
+- Indexing of top-level evaluated `bind!` symbols so imported bindings are visible cross-file
 - Workspace scanning for `.metta` files
 
 All Tree-sitter queries are loaded from `grammar/queries/metta/`.
@@ -126,31 +133,31 @@ Current diagnostics include:
 
 - Syntax errors and missing nodes
 - Duplicate top-level definitions (same name and arity)
-- Undefined function calls
-- Undefined types inside `(: ...)` declarations (optional)
-- Undefined scoped variables in `=`, `let`, and `let*` (including destructured binders like `($h $t)`)
-- Undefined binding symbols (symbols not built-in, user-defined, or introduced by `bind!`)
+- Undefined function calls in evaluated contexts
 - Argument count mismatch for calls
-- Type mismatch for calls when `:` signatures or built-in signatures are available
+- Type mismatch for calls when typed overloads are available
+- Type contract mismatch for typed definitions (declared parameter count vs definition arity)
+- Return type mismatch for typed definitions (declared return type vs inferred final body type)
+- Undefined types inside `(: ...)` type expressions
+- Undefined scoped variables in `=`, `let`, and `let*` (including destructured binders like `($h $t)`)
+- Undefined binding symbols (symbols not built-in, user-defined, imported, or introduced by `bind!`)
+- Unbound atom-space symbols (for example `&space`) unless bound/imported; `&self` is always allowed
+- Ambiguous `!name` symbol usage warning (distinguishes from eval prefix intent)
+- Variable edge-case warnings (`#` reserved in variable names, `;` suspicious inside variable token)
 - Ambiguous reference warnings when multiple overloads match
 
 ### Diagnostics Configuration
 
-The following VS Code settings control diagnostics behavior:
+The following VS Code settings control diagnostics behavior (default values shown):
 
-- `metta.diagnostics.duplicateDefinitions`
-- `metta.diagnostics.duplicateDefinitionsMode`
-- `metta.diagnostics.undefinedFunctions`
-- `metta.diagnostics.undefinedTypes`
-- `metta.diagnostics.undefinedVariables`
-- `metta.diagnostics.undefinedBindings`
-- `metta.diagnostics.typeMismatchEnabled`
-- `metta.diagnostics.typeMismatchMode`
-
-`metta.diagnostics.typeMismatchMode` values:
-
-- `runtime` (default): runtime-aligned matching; only report mismatches when incompatibility is provable.
-- `strict`: stronger static matching; can report more potential type issues.
+- `metta.diagnostics.duplicateDefinitions` (default: `false`)
+- `metta.diagnostics.duplicateDefinitionsMode` (default: `local`)
+- `metta.diagnostics.undefinedFunctions` (default: `false`)
+- `metta.diagnostics.undefinedTypes` (default: `true`)
+- `metta.diagnostics.undefinedVariables` (default: `false`)
+- `metta.diagnostics.undefinedBindings` (default: `false`)
+- `metta.diagnostics.typeMismatchEnabled` (default: `true`)
+- `metta.diagnostics.argumentCountMismatchEnabled` (default: `true`)
 
 `metta.diagnostics.duplicateDefinitionsMode` values:
 

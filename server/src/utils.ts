@@ -159,11 +159,12 @@ function formatBuiltinMarkdown(symbol: string, entry: BuiltinEntry, category: Bu
 
 function collectTypeTokens(text: string | undefined, out: Set<string>): void {
     if (typeof text !== 'string' || text.length === 0) return;
-    const tokens = text.match(/[A-Za-z][A-Za-z0-9_-]*/g) ?? [];
+    const tokens = text.match(/[^()\s;]+/gu) ?? [];
     for (const token of tokens) {
-        if (/^[A-Z]/.test(token)) {
-            out.add(token);
-        }
+        if (!token || token === '->' || token === ':') continue;
+        if (token.startsWith('$')) continue;
+        if (token.startsWith('"') && token.endsWith('"')) continue;
+        out.add(token);
     }
 }
 

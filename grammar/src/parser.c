@@ -4,6 +4,39 @@
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #endif
 
+static inline bool ts_is_unicode_whitespace(int32_t c) {
+  switch (c) {
+    case 0x0009:
+    case 0x000A:
+    case 0x000B:
+    case 0x000C:
+    case 0x000D:
+    case 0x0020:
+    case 0x0085:
+    case 0x00A0:
+    case 0x1680:
+    case 0x2000:
+    case 0x2001:
+    case 0x2002:
+    case 0x2003:
+    case 0x2004:
+    case 0x2005:
+    case 0x2006:
+    case 0x2007:
+    case 0x2008:
+    case 0x2009:
+    case 0x200A:
+    case 0x2028:
+    case 0x2029:
+    case 0x202F:
+    case 0x205F:
+    case 0x3000:
+      return true;
+    default:
+      return false;
+  }
+}
+
 #define LANGUAGE_VERSION 14
 #define STATE_COUNT 14
 #define LARGE_STATE_COUNT 12
@@ -199,10 +232,9 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       if (lookahead == '(') ADVANCE(6);
       if (lookahead == ')') ADVANCE(7);
       if (lookahead == '-') ADVANCE(12);
-      if (lookahead == '.') ADVANCE(2);
+      if (lookahead == '.') ADVANCE(13);
       if (lookahead == ';') ADVANCE(15);
-      if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') SKIP(0);
+      if (ts_is_unicode_whitespace(lookahead)) SKIP(0);
       if (('0' <= lookahead && lookahead <= '9')) ADVANCE(9);
       if (lookahead != 0) ADVANCE(14);
       END_STATE();
@@ -218,12 +250,9 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       END_STATE();
     case 3:
       if (lookahead != 0 &&
-          (lookahead < '\t' || '\r' < lookahead) &&
-          lookahead != ' ' &&
-          lookahead != '"' &&
+          !ts_is_unicode_whitespace(lookahead) &&
           lookahead != '(' &&
-          lookahead != ')' &&
-          lookahead != ';') ADVANCE(8);
+          lookahead != ')') ADVANCE(8);
       END_STATE();
     case 4:
       if (lookahead != 0 &&
@@ -241,21 +270,28 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
     case 8:
       ACCEPT_TOKEN(sym_variable);
       if (lookahead != 0 &&
-          (lookahead < '\t' || '\r' < lookahead) &&
-          lookahead != ' ' &&
-          lookahead != '"' &&
+          !ts_is_unicode_whitespace(lookahead) &&
           lookahead != '(' &&
-          lookahead != ')' &&
-          lookahead != ';') ADVANCE(8);
+          lookahead != ')') ADVANCE(8);
       END_STATE();
     case 9:
       ACCEPT_TOKEN(sym_number);
       if (lookahead == '.') ADVANCE(10);
       if (('0' <= lookahead && lookahead <= '9')) ADVANCE(9);
+      if (lookahead != 0 &&
+          !ts_is_unicode_whitespace(lookahead) &&
+          lookahead != '(' &&
+          lookahead != ')' &&
+          lookahead != ';') ADVANCE(14);
       END_STATE();
     case 10:
       ACCEPT_TOKEN(sym_number);
       if (('0' <= lookahead && lookahead <= '9')) ADVANCE(10);
+      if (lookahead != 0 &&
+          !ts_is_unicode_whitespace(lookahead) &&
+          lookahead != '(' &&
+          lookahead != ')' &&
+          lookahead != ';') ADVANCE(14);
       END_STATE();
     case 11:
       ACCEPT_TOKEN(sym_string);
@@ -265,9 +301,7 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       if (lookahead == '.') ADVANCE(13);
       if (('0' <= lookahead && lookahead <= '9')) ADVANCE(9);
       if (lookahead != 0 &&
-          (lookahead < '\t' || '\r' < lookahead) &&
-          lookahead != ' ' &&
-          lookahead != '"' &&
+          !ts_is_unicode_whitespace(lookahead) &&
           lookahead != '(' &&
           lookahead != ')' &&
           lookahead != ';') ADVANCE(14);
@@ -276,9 +310,7 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       ACCEPT_TOKEN(sym_symbol);
       if (('0' <= lookahead && lookahead <= '9')) ADVANCE(10);
       if (lookahead != 0 &&
-          (lookahead < '\t' || '\r' < lookahead) &&
-          lookahead != ' ' &&
-          lookahead != '"' &&
+          !ts_is_unicode_whitespace(lookahead) &&
           lookahead != '(' &&
           lookahead != ')' &&
           lookahead != ';') ADVANCE(14);
@@ -286,9 +318,7 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
     case 14:
       ACCEPT_TOKEN(sym_symbol);
       if (lookahead != 0 &&
-          (lookahead < '\t' || '\r' < lookahead) &&
-          lookahead != ' ' &&
-          lookahead != '"' &&
+          !ts_is_unicode_whitespace(lookahead) &&
           lookahead != '(' &&
           lookahead != ')' &&
           lookahead != ';') ADVANCE(14);
@@ -296,8 +326,7 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
     case 15:
       ACCEPT_TOKEN(sym_comment);
       if (lookahead != 0 &&
-          lookahead != '\n' &&
-          lookahead != '\r') ADVANCE(15);
+          lookahead != '\n') ADVANCE(15);
       END_STATE();
     default:
       return false;

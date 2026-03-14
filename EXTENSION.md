@@ -4,16 +4,48 @@ Full-featured Language Server Protocol (LSP) support for the [MeTTa](https://wik
 
 ## Features
 
-- Syntax Highlighting: Tree-sitter powered semantic coloring for keywords, functions, variables, strings, numbers, and operators
-- Diagnostics: syntax errors, undefined names, arity/type mismatches, and overload ambiguity
-- Go to Definition: jump to function/type definitions across the workspace
-- Hover Info: view type signatures and symbol details on hover
-- Auto-Completion: context-aware keyword and project symbol suggestions
-- Find All References: locate usages with scope awareness
-- Rename Symbol: safe workspace-wide renaming with conflict detection
-- Document Symbols: Outline integration for `=`, `:`, `->`, and macro definitions
-- Signature Help: parameter hints while typing function calls
-- Formatting: full-document, range, and on-type formatting
+- Tree-sitter-based semantic highlighting with built-in/unresolved modifiers.
+- Arrow type-role coloring: parameter type terms use `type`; final return type term uses `type.returnType`.
+- Real-time diagnostics for syntax, scope, binding/space usage, arity, and type contracts.
+- Import-aware symbol visibility for navigation and completions (`import!` / `register-module!` aware).
+- Top-level evaluated `bind!` symbols are indexed and visible across imported files.
+- Go to Definition, Hover, References, Rename, Signature Help, and Document Symbols.
+- Formatting support: full document, range, and on-type.
+
+## Diagnostics Coverage
+
+- Syntax errors and missing nodes.
+- Duplicate top-level definitions (same name + arity).
+- Undefined function calls in evaluated contexts.
+- Argument count mismatch for calls.
+- Type mismatch for calls when typed overloads are available.
+- Typed definition contract checks:
+  - declared parameter count vs definition arity mismatch,
+  - declared return type vs inferred final body type mismatch.
+- Undefined types in `(: ...)` type expressions.
+- Undefined scoped variables in `=`, `let`, and `let*`.
+- Undefined binding symbols (not built-in, user-defined, imported, or introduced by `bind!`).
+- Unbound atom-space symbols (for example `&space`) unless bound/imported; `&self` is always valid.
+- Ambiguous `!name` symbol warning.
+- Variable edge-case warnings (`#` in variable names, suspicious `;` inside variable tokens).
+- Ambiguous overload/reference warnings.
+
+## Settings
+
+Diagnostics settings (defaults from extension settings schema):
+
+- `metta.diagnostics.duplicateDefinitions` (default: `false`)
+- `metta.diagnostics.duplicateDefinitionsMode` (default: `local`)
+- `metta.diagnostics.undefinedFunctions` (default: `false`)
+- `metta.diagnostics.undefinedTypes` (default: `true`)
+- `metta.diagnostics.undefinedVariables` (default: `false`)
+- `metta.diagnostics.undefinedBindings` (default: `false`)
+- `metta.diagnostics.typeMismatchEnabled` (default: `true`)
+- `metta.diagnostics.argumentCountMismatchEnabled` (default: `true`)
+
+Hover settings:
+
+- `metta.hover.userDefinitionComments` (default: `true`)
 
 ## Installation
 
@@ -30,12 +62,6 @@ Search for **MeTTa Language Support** in the VS Code Extensions panel.
 ## Usage
 
 Open any `.metta` file and the language server activates automatically.
-
-## Development Notes
-
-- Source code is strict TypeScript (`tsconfig.json`).
-- Runtime artifacts are compiled JavaScript (`dist/` and `server/dist/`).
-- The extension client launches the server runtime from `server/dist/server.js`.
 
 ## License
 

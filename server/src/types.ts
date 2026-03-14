@@ -18,6 +18,7 @@ export interface SymbolEntry {
     description: string | null;
     parameters: string[] | null;
     typeSignature: string | null;
+    immediateTypeSignature: string | null;
     range: Range;
 }
 
@@ -58,7 +59,7 @@ export interface DiagnosticSettings {
     undefinedVariables: boolean;
     undefinedBindings: boolean;
     typeMismatchEnabled: boolean;
-    typeMismatchMode: 'runtime' | 'strict';
+    argumentCountMismatchEnabled: boolean;
 }
 
 export interface HoverSettings {
