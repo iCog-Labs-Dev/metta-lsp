@@ -141,7 +141,7 @@ export function handleHover(
 
     const markdown: string[] = [`**${symbolName}**`, ''];
 
-    const typeSig = typeEntry?.typeSignature;
+    const typeSig = typeEntry?.typeSignature ?? defEntry?.immediateTypeSignature ?? null;
     if (typeSig) {
         markdown.push('**Type**');
         markdown.push(typeSig);
