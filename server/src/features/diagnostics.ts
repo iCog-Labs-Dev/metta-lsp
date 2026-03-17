@@ -233,108 +233,103 @@ export function validateTextDocument(
         '<='
     ]);
 
-    if (diagnosticsSettings.undefinedFunctions) {
-        const reportUndefinedFunction = (symbolNode: SyntaxNode, name: string): void => {
-            diagnostics.push({
-                severity: DiagnosticSeverity.Warning,
-                range: {
-                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
-                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
-                },
-                message: `Undefined function '${name}'`,
-                source: 'metta-lsp'
-            });
-        };
+    traverseTree(tree.rootNode, (node) => {
+        if (node.type !== 'list') return;
+        if (!isInEvaluatedContext(node)) return;
 
-        traverseTree(tree.rootNode, (node) => {
-            if (node.type !== 'list') return;
-            if (!isInEvaluatedContext(node)) return;
+        const namedChildren = getNamedChildren(node);
+        if (namedChildren.length === 0) return;
 
-            const namedChildren = getNamedChildren(node);
-            if (namedChildren.length === 0) return;
+        const head = namedChildren[0];
+        if (head.type !== 'atom') return;
+        const symbolNode = head.children.find((child) => child.type === 'symbol');
+        if (!symbolNode) return;
 
-            const head = namedChildren[0];
-            if (head.type !== 'atom') return;
-            const symbolNode = head.children.find((child) => child.type === 'symbol');
-            if (!symbolNode) return;
+        const name = symbolNode.text;
+        if (boundSymbols.has(name)) return;
+        if (BUILTIN_SYMBOLS.has(name)) return;
+        if (validOperators.has(name)) return;
+        if (name.startsWith('$')) return;
+        if (isInsideCaseBranches(node)) return;
+        if (isInsideTypeExpression(node)) return;
 
-            const name = symbolNode.text;
-            if (boundSymbols.has(name)) return;
-            if (BUILTIN_SYMBOLS.has(name)) return;
-            if (validOperators.has(name)) return;
-            if (name.startsWith('$')) return;
-            if (isInsideCaseBranches(node)) return;
-            if (isInsideTypeExpression(node)) return;
-
-            const parent = node.parent;
-            if (parent && parent.type === 'list') {
-                const parentNamed = getNamedChildren(parent);
-                if (parentNamed[0]?.text === '=' && parentNamed[1] === node) {
-                    return;
-                }
-            }
-
-            const grandParent = node.parent;
-            if (grandParent && grandParent.type === 'list') {
-                const grandParentNamed = getNamedChildren(grandParent);
-                if (grandParentNamed[0]?.text === ':' && grandParentNamed[1] === head) {
-                    return;
-                }
-            }
-
-            const definitions = getVisibleEntries(name);
-            const callableDefinitions = definitions.filter(isCallableEntry);
-            if (callableDefinitions.length === 0) {
-                reportUndefinedFunction(symbolNode, name);
+        const parent = node.parent;
+        if (parent && parent.type === 'list') {
+            const parentNamed = getNamedChildren(parent);
+            if (parentNamed[0]?.text === '=' && parentNamed[1] === node) {
                 return;
             }
+        }
 
-            const callArity = namedChildren.length - 1;
-            const matchingDefinitions = callableDefinitions.filter((definition) => {
-                const arity = getEntryArity(definition);
-                return arity === null || arity === callArity;
-            });
+        const grandParent = node.parent;
+        if (grandParent && grandParent.type === 'list') {
+            const grandParentNamed = getNamedChildren(grandParent);
+            if (grandParentNamed[0]?.text === ':' && grandParentNamed[1] === head) {
+                return;
+            }
+        }
 
-            const concreteArities = Array.from(
-                new Set(
-                    callableDefinitions
-                        .map(getEntryArity)
-                        .filter((arity): arity is number => arity !== null)
-                )
-            ).sort((a, b) => a - b);
-
-            if (
-                concreteArities.length > 0 &&
-                matchingDefinitions.length === 0
-            ) {
-                if (diagnosticsSettings.argumentCountMismatchEnabled) {
-                    diagnostics.push({
-                        severity: DiagnosticSeverity.Error,
-                        range: {
-                            start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
-                            end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
-                        },
-                        message: `Argument count mismatch for '${name}': expected ${formatExpectedArities(concreteArities)}, got ${callArity}`,
-                        source: 'metta-lsp'
-                    });
-                }
-            } else if (
-                matchingDefinitions.length > 1 &&
-                !hasTypedOverloadForArity(name, callArity, getTypedOverloads)
-            ) {
+        const definitions = getVisibleEntries(name);
+        const callableDefinitions = definitions.filter(isCallableEntry);
+        if (callableDefinitions.length === 0) {
+            if (diagnosticsSettings.undefinedFunctions) {
                 diagnostics.push({
                     severity: DiagnosticSeverity.Warning,
                     range: {
                         start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
                         end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
                     },
-                    message: `Ambiguous reference '${name}': ${matchingDefinitions.length} matching definitions for ${callArity} argument(s)`,
+                    message: `Undefined function '${name}'`,
                     source: 'metta-lsp'
                 });
             }
+            return;
+        }
+
+        const callArity = namedChildren.length - 1;
+        const matchingDefinitions = callableDefinitions.filter((definition) => {
+            const arity = getEntryArity(definition);
+            return arity === null || arity === callArity;
         });
 
-    }
+        const concreteArities = Array.from(
+            new Set(
+                callableDefinitions
+                    .map(getEntryArity)
+                    .filter((arity): arity is number => arity !== null)
+            )
+        ).sort((a, b) => a - b);
+
+        if (
+            concreteArities.length > 0 &&
+            matchingDefinitions.length === 0
+        ) {
+            if (diagnosticsSettings.argumentCountMismatchEnabled) {
+                diagnostics.push({
+                    severity: DiagnosticSeverity.Error,
+                    range: {
+                        start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                        end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                    },
+                    message: `Argument count mismatch for '${name}': expected ${formatExpectedArities(concreteArities)}, got ${callArity}`,
+                    source: 'metta-lsp'
+                });
+            }
+        } else if (
+            matchingDefinitions.length > 1 &&
+            !hasTypedOverloadForArity(name, callArity, getTypedOverloads)
+        ) {
+            diagnostics.push({
+                severity: DiagnosticSeverity.Warning,
+                range: {
+                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
+                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
+                },
+                message: `Ambiguous reference '${name}': ${matchingDefinitions.length} matching definitions for ${callArity} argument(s)`,
+                source: 'metta-lsp'
+            });
+        }
+    });
 
     if (diagnosticsSettings.undefinedTypes) {
         const reportUndefinedType = (symbolNode: SyntaxNode, name: string): void => {

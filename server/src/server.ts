@@ -202,11 +202,6 @@ function getUnresolvedTokenDiagnostics(document: TextDocument): Diagnostic[] {
         return cached.diagnostics;
     }
 
-    const snapshot = diagnosticSnapshots.get(normalizedUri);
-    if (snapshot && isSnapshotCurrent(snapshot)) {
-        return updateUnresolvedTokenSnapshot(normalizedUri, sourceToken, snapshot.diagnostics);
-    }
-
     const diagnostics = validateTextDocument(document, analyzer, {
         duplicateDefinitions: false,
         undefinedFunctions: true,

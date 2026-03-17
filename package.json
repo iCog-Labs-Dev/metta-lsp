@@ -122,7 +122,7 @@
             "properties": {
                 "metta.diagnostics.duplicateDefinitions": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Enable warnings for duplicate top-level definitions with the same name and arity."
                 },
                 "metta.diagnostics.duplicateDefinitionsMode": {
@@ -145,7 +145,7 @@
                 },
                 "metta.diagnostics.undefinedFunctions": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Enable diagnostics for undefined functions."
                 },
                 "metta.diagnostics.undefinedTypes": {
@@ -155,12 +155,12 @@
                 },
                 "metta.diagnostics.undefinedVariables": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Enable diagnostics for undefined variables."
                 },
                 "metta.diagnostics.undefinedBindings": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Enable diagnostics for undefined binding variables or functions."
                 },
                 "metta.diagnostics.typeMismatchEnabled": {
