@@ -10,6 +10,7 @@ import type {
 } from 'vscode-languageserver/node';
 import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
+import type { ScopeAnalysis } from './features/scoping';
 
 export interface SymbolEntry {
     uri: string;
@@ -40,6 +41,7 @@ export interface ParseCacheEntry {
     timestamp: number;
     usageIndex: Map<string, Range[]>;
     oldTree: Parser.Tree | null;
+    scopeAnalysis: ScopeAnalysis | null;
 }
 
 export interface ModuleMeta {
@@ -61,6 +63,7 @@ export interface DiagnosticSettings {
     undefinedBindings: boolean;
     typeMismatchEnabled: boolean;
     argumentCountMismatchEnabled: boolean;
+    shadowingHints: boolean;
 }
 
 export interface HoverSettings {
@@ -96,4 +99,6 @@ export interface AnalyzerLike {
         changes?: readonly TextDocumentContentChangeEvent[] | null
     ): boolean;
     scanWorkspace(folders: WorkspaceFolder[]): Promise<void>;
+    getScopeAnalysis(uri: string, content: string): ScopeAnalysis | null;
 }
+

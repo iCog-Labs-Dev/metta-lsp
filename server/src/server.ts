@@ -125,7 +125,8 @@ const diagnosticSettings: DiagnosticSettings = {
     undefinedVariables: true,
     undefinedBindings: true,
     typeMismatchEnabled: true,
-    argumentCountMismatchEnabled: true
+    argumentCountMismatchEnabled: true,
+    shadowingHints: false
 };
 
 const hoverSettings: HoverSettings = {

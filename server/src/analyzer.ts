@@ -22,6 +22,8 @@ import type {
     ScopeTree,
     SymbolEntry
 } from './types';
+import { buildScopeAnalysis } from './features/scoping';
+import type { ScopeAnalysis } from './features/scoping';
 
 interface ScopeCandidate {
     node: Parser.SyntaxNode;
@@ -291,7 +293,8 @@ export default class Analyzer {
             content,
             timestamp,
             usageIndex,
-            oldTree
+            oldTree,
+            scopeAnalysis: null,
         };
 
         this.parseCache.set(normalizedUri, cacheEntry);
@@ -437,6 +440,33 @@ export default class Analyzer {
             return null;
         }
     }
+    public getScopeAnalysis(uri: string, content: string): ScopeAnalysis | null {
+        const normalizedUri = normalizeUri(uri);
+        const cached = this.parseCache.get(normalizedUri);
+        if (cached) {
+            if (cached.scopeAnalysis) return cached.scopeAnalysis;
+            try {
+                cached.scopeAnalysis = buildScopeAnalysis(cached.tree);
+                return cached.scopeAnalysis;
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                this.connection.console.error(`Failed to build scope analysis for ${normalizedUri}: ${message}`);
+                return null;
+            }
+        }
+        const entry = this.getOrParseFile(normalizedUri, content);
+        if (!entry) return null;
+        if (entry.scopeAnalysis) return entry.scopeAnalysis;
+        try {
+            entry.scopeAnalysis = buildScopeAnalysis(entry.tree);
+            return entry.scopeAnalysis;
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            this.connection.console.error(`Failed to build scope analysis for ${normalizedUri}: ${message}`);
+            return null;
+        }
+    }
+
 
     private clearVisibilityCaches(): void {
         this.visibleUrisCache.clear();
