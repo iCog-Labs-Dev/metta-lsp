@@ -1243,12 +1243,10 @@ function inferAtomType(
     parameterTypeEnvironment: Map<string, TypeTerm> | null
 ): TypeEvidence {
     if (node.children.some((child) => child.type === 'number')) {
-        // Runtime tokenizers can reinterpret numeric words; keep inference conservative.
-        return buildTypeEvidence([createNameTypeTerm('Grounded')], ['Grounded', 'Atom'], true);
+        return buildTypeEvidence([createNameTypeTerm('Number')], ['Grounded', 'Atom'], false);
     }
     if (node.children.some((child) => child.type === 'string')) {
-        // Runtime tokenizers can reinterpret string tokens; keep inference conservative.
-        return buildTypeEvidence([createNameTypeTerm('Grounded')], ['Grounded', 'Atom'], true);
+        return buildTypeEvidence([createNameTypeTerm('String')], ['Grounded', 'Atom'], false);
     }
     if (node.children.some((child) => child.type === 'variable')) {
         const variableNode = node.children.find((child) => child.type === 'variable');
@@ -1270,6 +1268,10 @@ function inferAtomType(
         return buildTypeEvidence([createNameTypeTerm('Bool')], ['Symbol', 'Atom']);
     }
 
+    if (isBuiltinTypeName(symbolNode.text)) {
+        return buildTypeEvidence([createNameTypeTerm('Type')], ['Symbol', 'Atom'], false);
+    }
+
     if (symbolNode.text.startsWith('&')) {
         return buildTypeEvidence([createNameTypeTerm('SpaceType')], ['Symbol', 'Atom']);
     }
@@ -1282,6 +1284,18 @@ function inferAtomType(
             [createNameTypeTerm('Symbol'), ...functionCandidates],
             ['Symbol', 'Atom']
         );
+    }
+
+    const typeEntries = getVisibleEntries(symbolNode.text).filter((entry) => entry.op === ':');
+    const typeCandidates: TypeTerm[] = [];
+    for (const entry of typeEntries) {
+        if (entry.typeSignature) {
+            const parsedTerm = parseTypeTerm(entry.typeSignature);
+            if (parsedTerm) typeCandidates.push(parsedTerm);
+        }
+    }
+    if (typeCandidates.length > 0) {
+        return buildTypeEvidence(typeCandidates, ['Symbol', 'Atom'], false);
     }
 
     const hasUntypedCallableDefinition = getVisibleEntries(symbolNode.text).some(isCallableEntry);
@@ -1475,9 +1489,7 @@ function isGroundedTypeTerm(term: TypeTerm): boolean {
 
 function isExpressionTypeTerm(term: TypeTerm): boolean {
     if (term.kind === 'name') return normalizeTypeName(term.name) === 'Expression';
-    if (term.kind === 'compound' && term.head.kind === 'name') {
-        return normalizeTypeName(term.head.name) === 'Expression';
-    }
+    if (term.kind === 'compound') return true;
     return false;
 }
 
