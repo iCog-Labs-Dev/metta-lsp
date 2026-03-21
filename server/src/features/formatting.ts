@@ -21,10 +21,28 @@ export function formatMettaText(text: string): string {
             continue;
         }
 
-        formattedLines.push(' '.repeat(indentLevel * indentSize) + trimmed);
+        // Count leading closing parens to de-indent BEFORE printing this line
+        let leadingClose = 0;
         for (const char of trimmed) {
-            if (char === '(' || char === '[') indentLevel++;
-            else if (char === ')' || char === ']') indentLevel = Math.max(indentLevel - 1, 0);
+            if (char === ')') leadingClose++;
+            else break;
+        }
+        indentLevel = Math.max(indentLevel - leadingClose, 0);
+
+        formattedLines.push(' '.repeat(indentLevel * indentSize) + trimmed);
+
+        // Update indent for NEXT line, ignoring brackets inside strings/comments
+        let inString = false;
+        let escaped = false;
+        for (const char of trimmed) {
+            if (escaped) { escaped = false; continue; }
+            if (char === '\\' && inString) { escaped = true; continue; }
+            if (char === '"') { inString = !inString; continue; }
+            if (char === ';' && !inString) break;
+            if (!inString) {
+                if (char === '(') indentLevel++;
+                else if (char === ')') indentLevel = Math.max(indentLevel - 1, 0);
+            }
         }
     }
 

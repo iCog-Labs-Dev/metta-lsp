@@ -81,7 +81,8 @@ export function validateTextDocument(
         undefinedVariables: settings.undefinedVariables !== false,
         undefinedBindings: settings.undefinedBindings !== false,
         typeMismatchEnabled: settings.typeMismatchEnabled !== false,
-        argumentCountMismatchEnabled: settings.argumentCountMismatchEnabled !== false
+        argumentCountMismatchEnabled: settings.argumentCountMismatchEnabled !== false,
+        shadowingHints: settings.shadowingHints === true
     };
 
     const text = document.getText();
@@ -441,7 +442,6 @@ export function validateTextDocument(
     if (diagnosticsSettings.undefinedVariables) {
         validateUndefinedVariables(tree.rootNode, diagnostics);
     }
-
     return diagnostics;
 }
 
@@ -1512,68 +1512,68 @@ function matchTypeTerms(
     activePairs.add(pairKey);
 
     try {
-    if (expected.kind === 'name') {
-        const expectedName = normalizeTypeName(expected.name);
-        if (UNIVERSAL_TYPE_NAMES.has(expectedName)) return true;
-    }
-
-    if (expected.kind === 'var') {
-        const resolvedExpected = resolveTypeTermBinding(expected, bindings);
-        if (resolvedExpected.kind !== 'var' || resolvedExpected.name !== expected.name) {
-            return matchTypeTerms(resolvedExpected, actual, bindings, activePairs);
+        if (expected.kind === 'name') {
+            const expectedName = normalizeTypeName(expected.name);
+            if (UNIVERSAL_TYPE_NAMES.has(expectedName)) return true;
         }
 
-        const resolvedActual = resolveTypeTermBinding(actual, bindings);
-        if (resolvedActual.kind === 'var' && resolvedActual.name === expected.name) {
-            // Self-unification ($a with $a) is already satisfied.
+        if (expected.kind === 'var') {
+            const resolvedExpected = resolveTypeTermBinding(expected, bindings);
+            if (resolvedExpected.kind !== 'var' || resolvedExpected.name !== expected.name) {
+                return matchTypeTerms(resolvedExpected, actual, bindings, activePairs);
+            }
+
+            const resolvedActual = resolveTypeTermBinding(actual, bindings);
+            if (resolvedActual.kind === 'var' && resolvedActual.name === expected.name) {
+                // Self-unification ($a with $a) is already satisfied.
+                return true;
+            }
+
+            bindings.set(expected.name, resolvedActual);
             return true;
         }
 
-        bindings.set(expected.name, resolvedActual);
-        return true;
-    }
+        if (actual.kind === 'var') {
+            const resolvedActual = resolveTypeTermBinding(actual, bindings);
+            if (resolvedActual.kind === 'var') {
+                return false;
+            }
+            return matchTypeTerms(expected, resolvedActual, bindings, activePairs);
+        }
 
-    if (actual.kind === 'var') {
-        const resolvedActual = resolveTypeTermBinding(actual, bindings);
-        if (resolvedActual.kind === 'var') {
+        if (actual.kind === 'name') {
+            const actualName = normalizeTypeName(actual.name);
+            if (actualName === '%Undefined%' || actualName === 'Atom') return true;
+        }
+
+        if (expected.kind === 'name' && actual.kind === 'name') {
+            const expectedName = normalizeTypeName(expected.name);
+            const actualName = normalizeTypeName(actual.name);
+            if (expectedName === actualName) return true;
+            if (expectedName === 'Grounded' && PRIMITIVE_GROUNDED_TYPES.has(actualName)) return true;
             return false;
         }
-        return matchTypeTerms(expected, resolvedActual, bindings, activePairs);
-    }
 
-    if (actual.kind === 'name') {
-        const actualName = normalizeTypeName(actual.name);
-        if (actualName === '%Undefined%' || actualName === 'Atom') return true;
-    }
-
-    if (expected.kind === 'name' && actual.kind === 'name') {
-        const expectedName = normalizeTypeName(expected.name);
-        const actualName = normalizeTypeName(actual.name);
-        if (expectedName === actualName) return true;
-        if (expectedName === 'Grounded' && PRIMITIVE_GROUNDED_TYPES.has(actualName)) return true;
-        return false;
-    }
-
-    if (expected.kind === 'compound' && actual.kind === 'compound') {
-        if (!matchTypeTerms(expected.head, actual.head, bindings, activePairs)) return false;
-        if (expected.args.length !== actual.args.length) return false;
-        for (let i = 0; i < expected.args.length; i++) {
-            if (!matchTypeTerms(expected.args[i], actual.args[i], bindings, activePairs)) return false;
+        if (expected.kind === 'compound' && actual.kind === 'compound') {
+            if (!matchTypeTerms(expected.head, actual.head, bindings, activePairs)) return false;
+            if (expected.args.length !== actual.args.length) return false;
+            for (let i = 0; i < expected.args.length; i++) {
+                if (!matchTypeTerms(expected.args[i], actual.args[i], bindings, activePairs)) return false;
+            }
+            return true;
         }
-        return true;
-    }
 
-    if (expected.kind === 'compound' && actual.kind === 'name') {
+        if (expected.kind === 'compound' && actual.kind === 'name') {
+            return false;
+        }
+
+        if (expected.kind === 'name' && actual.kind === 'compound') {
+            const expectedName = normalizeTypeName(expected.name);
+            if (expectedName === 'Expression') return true;
+            return false;
+        }
+
         return false;
-    }
-
-    if (expected.kind === 'name' && actual.kind === 'compound') {
-        const expectedName = normalizeTypeName(expected.name);
-        if (expectedName === 'Expression') return true;
-        return false;
-    }
-
-    return false;
     } finally {
         activePairs.delete(pairKey);
     }

@@ -4,6 +4,7 @@ import type { TextDocuments } from 'vscode-languageserver/node';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type Analyzer from '../analyzer';
 import { normalizeUri } from '../utils';
+import { resolveReference } from './scoping';
 
 type SyntaxNode = Parser.SyntaxNode;
 
@@ -88,11 +89,27 @@ export function handleDefinition(
     const tree = analyzer.getTreeForDocument(sourceUri, text);
     if (!tree) return null;
     const nodeAtCursor = tree.rootNode.descendantForIndex(offset);
-    if (!nodeAtCursor || (nodeAtCursor.type !== 'symbol' && nodeAtCursor.type !== 'variable')) {
+    if (!nodeAtCursor || (nodeAtCursor.type !== 'symbol' && nodeAtCursor.type !== 'variable' && nodeAtCursor.type !== 'atom')) {
         return null;
     }
 
-    const symbolName = nodeAtCursor.text;
+    let symbolName = nodeAtCursor.text;
+    if (nodeAtCursor.type === 'atom') {
+        const varChild = nodeAtCursor.children.find(c => c.type === 'variable');
+        if (varChild) symbolName = varChild.text;
+    }
+    const { line, character } = params.position;
+    const analysis = analyzer.getScopeAnalysis(sourceUri, text);
+    if (analysis) {
+        const resolved = resolveReference(symbolName, line, character, analysis.root);
+        if (resolved) {
+
+            return [{
+                uri: sourceUri,
+                range: resolved.binding.range
+            }];
+        }
+    }
     const entries = analyzer.getVisibleEntries(symbolName, sourceUri);
     const resolvedEntries = isCallableLookupSite(nodeAtCursor)
         ? entries.filter((entry) => isCallableEntryOp(entry.op))
