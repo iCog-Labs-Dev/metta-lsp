@@ -68,6 +68,31 @@ function isCallableEntry(entry: SymbolEntry): boolean {
     return entry.op === '=' || entry.op === 'macro' || entry.op === 'defmacro';
 }
 
+function isLikelySymbolName(name: string): boolean {
+    if (!name) return false;
+    return /^[^\d\.$()\s";][^()\s";]*$/u.test(name);
+}
+
+function containsParseError(node: SyntaxNode): boolean {
+    if (node.isMissing || node.type === 'ERROR') {
+        return true;
+    }
+
+    const stack: SyntaxNode[] = [node];
+    while (stack.length > 0) {
+        const current = stack.pop();
+        if (!current) continue;
+        if (current.isMissing || current.type === 'ERROR') {
+            return true;
+        }
+        for (const child of current.children) {
+            stack.push(child);
+        }
+    }
+
+    return false;
+}
+
 export function validateTextDocument(
     document: TextDocument,
     analyzer: Analyzer,
@@ -92,6 +117,7 @@ export function validateTextDocument(
         return [];
     }
     const diagnostics: Diagnostic[] = [];
+    const syntaxDiagnostics: Diagnostic[] = [];
     const topLevelEvaluatedForms = collectTopLevelEvaluatedForms(tree.rootNode);
     const isInEvaluatedContext = (node: SyntaxNode): boolean =>
         topLevelEvaluatedForms.some((form) => isDescendantOf(node, form));
@@ -128,7 +154,7 @@ export function validateTextDocument(
     traverseTree(tree.rootNode, (node) => {
         if (node.isMissing) {
             if (isInsideModuleDirective(node)) return;
-            diagnostics.push({
+            syntaxDiagnostics.push({
                 severity: DiagnosticSeverity.Error,
                 range: {
                     start: { line: node.startPosition.row, character: node.startPosition.column },
@@ -139,7 +165,7 @@ export function validateTextDocument(
             });
         } else if (node.type === 'ERROR') {
             if (isInsideModuleDirective(node)) return;
-            diagnostics.push({
+            syntaxDiagnostics.push({
                 severity: DiagnosticSeverity.Error,
                 range: {
                     start: { line: node.startPosition.row, character: node.startPosition.column },
@@ -237,6 +263,7 @@ export function validateTextDocument(
     traverseTree(tree.rootNode, (node) => {
         if (node.type !== 'list') return;
         if (!isInEvaluatedContext(node)) return;
+        if (containsParseError(node)) return;
 
         const namedChildren = getNamedChildren(node);
         if (namedChildren.length === 0) return;
@@ -247,6 +274,7 @@ export function validateTextDocument(
         if (!symbolNode) return;
 
         const name = symbolNode.text;
+        if (!isLikelySymbolName(name)) return;
         if (boundSymbols.has(name)) return;
         if (BUILTIN_SYMBOLS.has(name)) return;
         if (validOperators.has(name)) return;
@@ -365,6 +393,7 @@ export function validateTextDocument(
             if (node.type !== 'list') return;
             if (isInsideCaseBranches(node)) return;
             if (isInsideTypeExpression(node)) return;
+            if (containsParseError(node)) return;
 
             const namedChildren = getNamedChildren(node);
             if (namedChildren.length === 0) return;
@@ -390,6 +419,7 @@ export function validateTextDocument(
                 if (!symbolNode) continue;
 
                 const name = symbolNode.text;
+                if (!isLikelySymbolName(name)) continue;
                 if (BUILTIN_SYMBOLS.has(name)) continue;
                 if (name === '&self') continue;
                 if (name.startsWith('&')) continue;
@@ -442,7 +472,15 @@ export function validateTextDocument(
     if (diagnosticsSettings.undefinedVariables) {
         validateUndefinedVariables(tree.rootNode, diagnostics);
     }
-    return diagnostics;
+    const hasPrimaryErrors = diagnostics.some(
+        (diagnostic) => (diagnostic.severity ?? DiagnosticSeverity.Error) === DiagnosticSeverity.Error
+    );
+    if (hasPrimaryErrors) {
+        for (const diagnostic of syntaxDiagnostics) {
+            diagnostic.severity = DiagnosticSeverity.Warning;
+        }
+    }
+    return diagnostics.concat(syntaxDiagnostics);
 }
 
 function isInsideModuleDirective(node: SyntaxNode): boolean {
@@ -678,6 +716,7 @@ function validateDefinitionTypeContracts(
     traverseTree(rootNode, (node) => {
         if (node.type !== 'list') return;
         if (node.parent?.type !== 'source_file') return;
+        if (containsParseError(node)) return;
         if (getHeadSymbol(node) !== '=') return;
 
         const namedChildren = getNamedChildren(node);
@@ -774,6 +813,7 @@ function validateCallTypeSignatures(
 
     traverseTree(rootNode, (node) => {
         if (node.type !== 'list') return;
+        if (containsParseError(node)) return;
 
         const namedChildren = getNamedChildren(node);
         if (namedChildren.length === 0) return;

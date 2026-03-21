@@ -363,27 +363,6 @@ export default class Analyzer {
             return cached;
         }
 
-        if (cached && changes && changes.length > 0) {
-            const incrementalTree = this.parseIncrementalContent(normalizedUri, content, cached, changes);
-            if (incrementalTree) {
-                return this.cacheParsedTree(normalizedUri, content, incrementalTree, timestamp);
-            }
-        }
-
-        if (cached) {
-            const diffEdit = buildContentDiffEdit(cached.content, content);
-            if (diffEdit) {
-                const workingTree = cached.tree;
-                workingTree.edit(diffEdit.edit);
-                try {
-                    const incrementalTree = this.parser.parse(content, workingTree);
-                    return this.cacheParsedTree(normalizedUri, content, incrementalTree, timestamp);
-                } catch {
-                    // Fall back to a full parse below.
-                }
-            }
-        }
-
         const tree = this.parser.parse(content);
         return this.cacheParsedTree(normalizedUri, content, tree, timestamp);
     }

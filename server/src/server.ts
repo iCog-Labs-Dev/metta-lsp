@@ -330,8 +330,27 @@ function indexDocument(uri: string, content: string): boolean {
     }
 }
 
+function findOpenDocument(uri: string): TextDocument | null {
+    const direct = documents.get(uri);
+    if (direct) return direct;
+
+    const normalizedUri = normalizeUri(uri);
+    if (normalizedUri !== uri) {
+        const normalized = documents.get(normalizedUri);
+        if (normalized) return normalized;
+    }
+
+    for (const document of documents.all()) {
+        if (normalizeUri(document.uri) === normalizedUri) {
+            return document;
+        }
+    }
+
+    return null;
+}
+
 async function getDocumentForDiagnostics(uri: string): Promise<LoadedDiagnosticDocument | null> {
-    const openDocument = documents.get(uri);
+    const openDocument = findOpenDocument(uri);
     if (openDocument) {
         const version = typeof openDocument.version === 'number' ? openDocument.version : null;
         return {
@@ -343,17 +362,6 @@ async function getDocumentForDiagnostics(uri: string): Promise<LoadedDiagnosticD
     }
 
     const normalizedUri = normalizeUri(uri);
-    const normalizedDocument = normalizedUri === uri ? null : documents.get(normalizedUri);
-    if (normalizedDocument) {
-        const version = typeof normalizedDocument.version === 'number' ? normalizedDocument.version : null;
-        return {
-            uri: normalizedUri,
-            document: normalizedDocument,
-            version,
-            sourceToken: `open:${version ?? 'null'}`
-        };
-    }
-
     const filePath = uriToPath(normalizedUri);
     if (!filePath) return null;
 
@@ -601,14 +609,20 @@ async function runDocumentDiagnosticPull(
     token: CancellationToken,
     workDoneProgress: WorkDoneProgressReporter
 ): Promise<DocumentDiagnosticReport> {
-    const uri = normalizeUri(params.textDocument.uri);
-    const requestVersion = beginTrackedDiagnosticRequest(uri);
-    workDoneProgress.begin('Computing diagnostics', 0, uri, true);
+    const requestUri = params.textDocument.uri;
+    const normalizedUri = normalizeUri(requestUri);
+    const requestVersion = beginTrackedDiagnosticRequest(normalizedUri);
+    workDoneProgress.begin('Computing diagnostics', 0, normalizedUri, true);
 
     try {
         await refreshDiagnosticSettings();
-        const snapshot = await computeDocumentDiagnosticSnapshot(uri, uri, requestVersion, token);
-        ensureTrackedDiagnosticRequest(uri, requestVersion, token, `Diagnostic request for ${uri} was superseded`);
+        const snapshot = await computeDocumentDiagnosticSnapshot(requestUri, normalizedUri, requestVersion, token);
+        ensureTrackedDiagnosticRequest(
+            normalizedUri,
+            requestVersion,
+            token,
+            `Diagnostic request for ${normalizedUri} was superseded`
+        );
         workDoneProgress.report(100, 'Completed');
         return toDocumentDiagnosticReport(snapshot, params.previousResultId);
     } catch (error: unknown) {
@@ -617,8 +631,8 @@ async function runDocumentDiagnosticPull(
         }
 
         const message = error instanceof Error ? error.message : String(error);
-        connection.console.error(`Document diagnostic pull failed for ${uri}: ${message}`);
-        const fallbackSnapshot = createEmptyDiagnosticSnapshot(uri);
+        connection.console.error(`Document diagnostic pull failed for ${normalizedUri}: ${message}`);
+        const fallbackSnapshot = createEmptyDiagnosticSnapshot(normalizedUri);
         return toDocumentDiagnosticReport(fallbackSnapshot, params.previousResultId);
     } finally {
         workDoneProgress.done();
@@ -779,9 +793,12 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     supportsPullDiagnosticsCapability = !!(capabilities.textDocument?.diagnostic);
     supportsDiagnosticDynamicRegistration = !!(capabilities.textDocument?.diagnostic?.dynamicRegistration);
     supportsDiagnosticRefreshCapability = !!(capabilities.workspace?.diagnostics?.refreshSupport);
-    usePullDiagnostics = supportsPullDiagnosticsCapability;
+    usePullDiagnostics = supportsPullDiagnosticsCapability && supportsDiagnosticRefreshCapability;
     usePushDiagnostics = !usePullDiagnostics;
 
+    if (supportsPullDiagnosticsCapability && !supportsDiagnosticRefreshCapability) {
+        connection.console.log('Client does not support workspace diagnostic refresh; falling back to push diagnostics.');
+    }
     connection.console.log('MeTTa LSP Server Initialized');
     if (params.workspaceFolders) {
         workspaceFolders = params.workspaceFolders;
@@ -883,6 +900,7 @@ documents.onDidOpen(async (event) => {
         sendPushDiagnostics(event.document);
     } else {
         scheduleWorkspaceDiagnosticWarmup();
+        schedulePullDiagnosticsRefresh();
     }
 });
 
@@ -894,6 +912,7 @@ documents.onDidChangeContent(async (change) => {
         sendPushDiagnostics(change.document);
     } else {
         scheduleWorkspaceDiagnosticWarmup();
+        schedulePullDiagnosticsRefresh();
     }
 });
 
@@ -915,7 +934,7 @@ connection.onReferences((params, token, workDoneProgress, resultProgress) =>
 );
 connection.onDocumentSymbol((params) => handleDocumentSymbols(params, documents, analyzer));
 connection.languages.semanticTokens.on((params) => {
-    const document = documents.get(params.textDocument.uri);
+    const document = findOpenDocument(params.textDocument.uri);
     const unresolvedDiagnostics = document ? getUnresolvedTokenDiagnostics(document) : [];
     return handleSemanticTokens(params, documents, analyzer, unresolvedDiagnostics);
 });
