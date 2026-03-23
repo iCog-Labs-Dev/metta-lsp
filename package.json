@@ -1,0 +1,10 @@
+{
+  "name": "petta-playground",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npx serve -l 5151"
+  },
+  "dependencies": {
+    "swipl-wasm": "^7.0.5"
+  }
+}
