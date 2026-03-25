@@ -31,6 +31,18 @@ function getNamedChildren(node: SyntaxNode): SyntaxNode[] {
     return node.children.filter((child) => child.type === 'atom' || child.type === 'list');
 }
 
+function isSameNode(left: SyntaxNode | null, right: SyntaxNode | null): boolean {
+    if (!left || !right) return false;
+    return left.type === right.type &&
+        left.startIndex === right.startIndex &&
+        left.endIndex === right.endIndex;
+}
+
+function findNamedChildIndex(parent: SyntaxNode, target: SyntaxNode): number {
+    const named = getNamedChildren(parent);
+    return named.findIndex((child) => isSameNode(child, target));
+}
+
 function getHeadSymbol(listNode: SyntaxNode): string | null {
     if (listNode.type !== 'list') return null;
     const children = getNamedChildren(listNode);
@@ -121,6 +133,29 @@ export function validateTextDocument(
     const topLevelEvaluatedForms = collectTopLevelEvaluatedForms(tree.rootNode);
     const isInEvaluatedContext = (node: SyntaxNode): boolean =>
         topLevelEvaluatedForms.some((form) => isDescendantOf(node, form));
+    const isInRuleBodyContext = (node: SyntaxNode): boolean => {
+        let current: SyntaxNode | null = node;
+        while (current) {
+            const parent: SyntaxNode | null = current.parent;
+            if (!parent || parent.type !== 'list') {
+                current = parent;
+                continue;
+            }
+
+            const parentNamed = getNamedChildren(parent);
+            const parentHead = parentNamed[0]?.text;
+            if (parentHead === '=' || parentHead === 'macro' || parentHead === 'defmacro') {
+                const childIndex = findNamedChildIndex(parent, current);
+                if (childIndex >= 2) return true;
+                if (childIndex === 1) return false;
+            }
+
+            current = parent;
+        }
+        return false;
+    };
+    const isInArityCheckedContext = (node: SyntaxNode): boolean =>
+        isInEvaluatedContext(node) || isInRuleBodyContext(node);
     const boundSymbols = collectBoundSymbols(tree.rootNode);
     const visibleEntriesCache = new Map<string, SymbolEntry[]>();
     const typedOverloadCache = new Map<string, TypedOverload[]>();
@@ -262,7 +297,7 @@ export function validateTextDocument(
 
     traverseTree(tree.rootNode, (node) => {
         if (node.type !== 'list') return;
-        if (!isInEvaluatedContext(node)) return;
+        if (!isInArityCheckedContext(node)) return;
         if (containsParseError(node)) return;
 
         const namedChildren = getNamedChildren(node);
@@ -274,10 +309,10 @@ export function validateTextDocument(
         if (!symbolNode) return;
 
         const name = symbolNode.text;
+        const isBuiltinSymbol = BUILTIN_SYMBOLS.has(name);
+        const isKnownOperator = validOperators.has(name);
         if (!isLikelySymbolName(name)) return;
         if (boundSymbols.has(name)) return;
-        if (BUILTIN_SYMBOLS.has(name)) return;
-        if (validOperators.has(name)) return;
         if (name.startsWith('$')) return;
         if (isInsideCaseBranches(node)) return;
         if (isInsideTypeExpression(node)) return;
@@ -285,7 +320,7 @@ export function validateTextDocument(
         const parent = node.parent;
         if (parent && parent.type === 'list') {
             const parentNamed = getNamedChildren(parent);
-            if (parentNamed[0]?.text === '=' && parentNamed[1] === node) {
+            if (parentNamed[0]?.text === '=' && isSameNode(parentNamed[1] ?? null, node)) {
                 return;
             }
         }
@@ -293,15 +328,24 @@ export function validateTextDocument(
         const grandParent = node.parent;
         if (grandParent && grandParent.type === 'list') {
             const grandParentNamed = getNamedChildren(grandParent);
-            if (grandParentNamed[0]?.text === ':' && grandParentNamed[1] === head) {
+            if (grandParentNamed[0]?.text === ':' && isSameNode(grandParentNamed[1] ?? null, head)) {
                 return;
             }
         }
 
         const definitions = getVisibleEntries(name);
         const callableDefinitions = definitions.filter(isCallableEntry);
-        if (callableDefinitions.length === 0) {
+        const builtinTypedArities = (isBuiltinSymbol || isKnownOperator)
+            ? Array.from(
+                new Set(
+                    getTypedOverloads(name).map((overload) => overload.paramTypes.length)
+                )
+            ).sort((a, b) => a - b)
+            : [];
+
+        if (callableDefinitions.length === 0 && builtinTypedArities.length === 0) {
             if (diagnosticsSettings.undefinedFunctions) {
+                if (isBuiltinSymbol || isKnownOperator) return;
                 diagnostics.push({
                     severity: DiagnosticSeverity.Warning,
                     range: {
@@ -320,18 +364,23 @@ export function validateTextDocument(
             const arity = getEntryArity(definition);
             return arity === null || arity === callArity;
         });
+        const hasTypedArityMatch = builtinTypedArities.includes(callArity);
 
-        const concreteArities = Array.from(
+        const concreteDefinitionArities = Array.from(
             new Set(
                 callableDefinitions
                     .map(getEntryArity)
                     .filter((arity): arity is number => arity !== null)
             )
         ).sort((a, b) => a - b);
+        const concreteArities = Array.from(
+            new Set([...concreteDefinitionArities, ...builtinTypedArities])
+        ).sort((a, b) => a - b);
 
         if (
             concreteArities.length > 0 &&
-            matchingDefinitions.length === 0
+            matchingDefinitions.length === 0 &&
+            !hasTypedArityMatch
         ) {
             if (diagnosticsSettings.argumentCountMismatchEnabled) {
                 diagnostics.push({
@@ -346,7 +395,7 @@ export function validateTextDocument(
             }
         } else if (
             matchingDefinitions.length > 1 &&
-            !hasTypedOverloadForArity(name, callArity, getTypedOverloads)
+            !hasTypedArityMatch
         ) {
             diagnostics.push({
                 severity: DiagnosticSeverity.Warning,
@@ -565,7 +614,7 @@ function isInsideCaseBranches(node: SyntaxNode): boolean {
         if (maybeCaseCall.type === 'list') {
             const named = getNamedChildren(maybeCaseCall);
             if (named.length >= 3 && named[0].type === 'atom' && named[0].text === 'case') {
-                if (named[2] === current) {
+                if (isSameNode(named[2] ?? null, current)) {
                     return true;
                 }
             }
@@ -579,7 +628,7 @@ function isDescendantOf(node: SyntaxNode | null, ancestor: SyntaxNode | null): b
     if (!node || !ancestor) return false;
     let current: SyntaxNode | null = node;
     while (current) {
-        if (current === ancestor) return true;
+        if (isSameNode(current, ancestor)) return true;
         current = current.parent;
     }
     return false;
@@ -805,12 +854,7 @@ function validateCallTypeSignatures(
         ':',
         '->',
         'macro',
-        'defmacro',
-        'let',
-        'let*',
-        'match',
-        'case',
-        'if'
+        'defmacro'
     ]);
     const inferenceCache = new Map<string, TypeEvidence>();
     const inferenceInProgress = new Set<string>();
@@ -1282,12 +1326,10 @@ function inferAtomType(
     parameterTypeEnvironment: Map<string, TypeTerm> | null
 ): TypeEvidence {
     if (node.children.some((child) => child.type === 'number')) {
-        // Runtime tokenizers can reinterpret numeric words; keep inference conservative.
-        return buildTypeEvidence([createNameTypeTerm('Grounded')], ['Grounded', 'Atom'], true);
+        return buildTypeEvidence([createNameTypeTerm('Number')], ['Grounded', 'Atom']);
     }
     if (node.children.some((child) => child.type === 'string')) {
-        // Runtime tokenizers can reinterpret string tokens; keep inference conservative.
-        return buildTypeEvidence([createNameTypeTerm('Grounded')], ['Grounded', 'Atom'], true);
+        return buildTypeEvidence([createNameTypeTerm('String')], ['Grounded', 'Atom']);
     }
     if (node.children.some((child) => child.type === 'variable')) {
         const variableNode = node.children.find((child) => child.type === 'variable');
@@ -1671,15 +1713,6 @@ function instantiateReturnType(
         },
         unresolved
     };
-}
-
-function hasTypedOverloadForArity(
-    name: string,
-    arity: number,
-    getTypedOverloads: (name: string) => TypedOverload[]
-): boolean {
-    return getTypedOverloads(name)
-        .some((overload) => overload.paramTypes.length === arity);
 }
 
 function inferDefinitionArity(nameNode: SyntaxNode | null): number {
