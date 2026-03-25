@@ -8,9 +8,11 @@ Full-featured Language Server Protocol (LSP) support for the [MeTTa](https://wik
 - Arrow type-role coloring: parameter type terms use `type`; final return type term uses `type.returnType`.
 - Real-time diagnostics for syntax, scope, binding/space usage, arity, and type contracts.
 - Import-aware symbol visibility for navigation and completions (`import!` / `register-module!` aware).
+- Auto-import completions for symbols/types/spaces defined in other files.
 - Top-level evaluated `bind!` symbols are indexed and visible across imported files.
 - Go to Definition, Hover, References, Rename, Signature Help, and Document Symbols.
 - Formatting support: full document, range, and on-type.
+- Quick-fix code actions for unresolved symbols/types/spaces that insert `import!` directives.
 
 ## Diagnostics Coverage
 

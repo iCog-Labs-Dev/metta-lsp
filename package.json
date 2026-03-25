@@ -2,7 +2,7 @@
     "name": "metta-lsp",
     "displayName": "MeTTa Language Support",
     "description": "Full LSP support for the MeTTa language — syntax highlighting, diagnostics, go-to-definition, hover, completions, references, rename, and more.",
-    "version": "0.1.1",
+    "version": "0.2.1",
     "publisher": "metta-lang",
     "repository": {
         "type": "git",

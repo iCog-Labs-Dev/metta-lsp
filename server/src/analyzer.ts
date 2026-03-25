@@ -644,7 +644,7 @@ export default class Analyzer {
         return true;
     }
 
-    private updateModuleMetadata(uri: string, tree: Parser.Tree, content: string | null = null): void {
+    private updateModuleMetadata(uri: string, tree: Parser.Tree, _content: string | null = null): void {
         const oldMeta = this.moduleMeta.get(uri);
         if (oldMeta) {
             for (const root of oldMeta.registerRoots) {
@@ -657,57 +657,32 @@ export default class Analyzer {
         const filePath = uriToPath(uri);
         const fileDir = filePath ? path.dirname(filePath) : null;
 
-        if (typeof content === 'string') {
-            const registerRegex = /\(\s*register-module!\s+([^\s)]+)/g;
-            let regMatch: RegExpExecArray | null;
-            while ((regMatch = registerRegex.exec(content)) !== null) {
-                const raw = stripQuotes(regMatch[1].trim());
-                if (!raw || raw.startsWith('&') || !fileDir) continue;
-                const abs = path.isAbsolute(raw)
-                    ? path.resolve(path.normalize(raw))
-                    : path.resolve(fileDir, raw);
-                registerRoots.add(abs);
+        traverseTree(tree.rootNode, (node) => {
+            if (node.type !== 'list') return;
+            const named = node.children.filter((child) => child.type === 'atom' || child.type === 'list');
+            if (named.length === 0 || named[0].type !== 'atom') return;
+            const head = named[0].text;
+
+            if (head === 'import!') {
+                const importArg = named
+                    .slice(1)
+                    .map((child) => child.text.trim())
+                    .filter((value) => value && !value.startsWith('&'))
+                    .pop();
+                if (importArg) imports.add(stripQuotes(importArg));
             }
 
-            const importRegex = /\(\s*import!\s+([^)]+)\)/g;
-            let impMatch: RegExpExecArray | null;
-            while ((impMatch = importRegex.exec(content)) !== null) {
-                const tokens = impMatch[1]
-                    .split(/\s+/)
-                    .map((token) => token.trim())
-                    .filter(Boolean)
-                    .filter((token) => !token.startsWith('&'));
-                if (tokens.length === 0) continue;
-                imports.add(stripQuotes(tokens[tokens.length - 1]));
+            if (head === 'register-module!') {
+                for (const arg of named.slice(1)) {
+                    const raw = stripQuotes(arg.text.trim());
+                    if (!raw || raw.startsWith('&') || !fileDir) continue;
+                    const abs = path.isAbsolute(raw)
+                        ? path.resolve(path.normalize(raw))
+                        : path.resolve(fileDir, raw);
+                    registerRoots.add(abs);
+                }
             }
-        } else {
-            traverseTree(tree.rootNode, (node) => {
-                if (node.type !== 'list') return;
-                const named = node.children.filter((child) => child.type === 'atom' || child.type === 'list');
-                if (named.length === 0 || named[0].type !== 'atom') return;
-                const head = named[0].text;
-
-                if (head === 'import!') {
-                    const importArg = named
-                        .slice(1)
-                        .map((child) => child.text.trim())
-                        .filter((value) => value && !value.startsWith('&'))
-                        .pop();
-                    if (importArg) imports.add(stripQuotes(importArg));
-                }
-
-                if (head === 'register-module!') {
-                    for (const arg of named.slice(1)) {
-                        const raw = stripQuotes(arg.text.trim());
-                        if (!raw || raw.startsWith('&') || !fileDir) continue;
-                        const abs = path.isAbsolute(raw)
-                            ? path.resolve(path.normalize(raw))
-                            : path.resolve(fileDir, raw);
-                        registerRoots.add(abs);
-                    }
-                }
-            });
-        }
+        });
 
         for (const root of registerRoots) {
             this.globalModuleRoots.add(root);
@@ -751,6 +726,15 @@ export default class Analyzer {
         if (importSpec.includes(':')) {
             const segments = importSpec.split(':').filter(Boolean);
             const rel = segments.join(path.sep);
+
+            if (baseDir) {
+                tryPath(path.resolve(baseDir, rel));
+                const baseName = path.basename(baseDir).toLowerCase();
+                if (segments.length > 1 && segments[0].toLowerCase() === baseName) {
+                    tryPath(path.resolve(baseDir, ...segments.slice(1)));
+                }
+            }
+
             for (const root of roots) {
                 tryPath(path.resolve(root, rel));
                 const rootBase = path.basename(root).toLowerCase();

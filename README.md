@@ -11,11 +11,13 @@ The extension client and language server source are implemented in strict TypeSc
 - Go to Definition: jump to function/type definitions across the workspace
 - Hover Documentation: rich hover info with signatures, descriptions, parameters, and return types
 - Auto-Completion: context-aware suggestions from built-ins and symbols visible through import/module resolution
+- Auto-Import: completion suggestions can insert missing `import!` statements for symbols defined in other files
 - Find All References: locate symbol usage across the project with scope awareness
 - Rename Symbol: safe workspace-wide renaming with conflict detection
 - Document Symbols: Outline integration for `=`, `:`, `->`, and macro definitions
 - Signature Help: parameter hints while calling functions
 - Formatting: full-document, range, and on-type formatting
+- Quick Fixes: code actions for unresolved symbols/types/spaces with one-click import insertion
 
 ## Prerequisites
 

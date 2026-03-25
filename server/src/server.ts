@@ -27,6 +27,7 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Analyzer from './analyzer';
 import { handleCompletion, handleCompletionResolve } from './features/completion';
+import { handleCodeActions } from './features/codeActions';
 import { handleDefinition } from './features/definition';
 import { validateTextDocument } from './features/diagnostics';
 import {
@@ -828,6 +829,9 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         },
         completionProvider: {
             resolveProvider: true
+        },
+        codeActionProvider: {
+            codeActionKinds: ['quickfix']
         }
     };
 
@@ -922,6 +926,7 @@ documents.onDidClose((event) => {
 
 connection.onCompletion((params) => handleCompletion(params, analyzer));
 connection.onCompletionResolve(handleCompletionResolve);
+connection.onCodeAction((params) => handleCodeActions(params, documents, analyzer));
 connection.onDefinition((params) => handleDefinition(params, documents, analyzer));
 connection.onHover((params) => handleHover(params, documents, analyzer, hoverSettings));
 connection.onReferences((params, token, workDoneProgress, resultProgress) =>
