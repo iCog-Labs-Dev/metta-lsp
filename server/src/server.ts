@@ -120,10 +120,10 @@ const unresolvedTokenMessagePrefixes = [
 const diagnosticSettings: DiagnosticSettings = {
     duplicateDefinitions: true,
     duplicateDefinitionsMode: 'local',
-    undefinedFunctions: true,
+    undefinedFunctions: false,
     undefinedTypes: false,
-    undefinedVariables: true,
-    undefinedBindings: true,
+    undefinedVariables: false,
+    undefinedBindings: false,
     typeMismatchEnabled: true,
     argumentCountMismatchEnabled: true,
     shadowingHints: false
@@ -275,10 +275,10 @@ async function refreshDiagnosticSettings(): Promise<void> {
         ? config.diagnostics as Partial<DiagnosticSettings>
         : {};
 
-    const nextUndefinedFunctions = diagnosticsConfig.undefinedFunctions !== false;
+    const nextUndefinedFunctions = false;
     const nextUndefinedTypes = diagnosticsConfig.undefinedTypes === true;
-    const nextUndefinedVariables = diagnosticsConfig.undefinedVariables !== false;
-    const nextUndefinedBindings = diagnosticsConfig.undefinedBindings !== false;
+    const nextUndefinedVariables = false;
+    const nextUndefinedBindings = false;
     const nextTypeMismatchEnabled = diagnosticsConfig.typeMismatchEnabled !== false;
     const nextArgumentCountMismatchEnabled = diagnosticsConfig.argumentCountMismatchEnabled !== false;
     const nextDuplicateDefinitions = diagnosticsConfig.duplicateDefinitions !== false;
@@ -401,7 +401,6 @@ function createDiagnosticSnapshot(
     const normalizedUri = normalizeUri(document.uri);
     const version = reportedVersion;
     const diagnostics = validateTextDocument(document, analyzer, diagnosticSettings);
-    updateUnresolvedTokenSnapshot(normalizedUri, sourceToken, diagnostics);
     const digest = `${diagnosticSettingsRevision}:${indexRevision}:${sourceToken}:${version ?? 'null'}:${hashDiagnostics(diagnostics)}`;
 
     const existing = diagnosticSnapshots.get(normalizedUri);
@@ -445,7 +444,6 @@ function createEmptyDiagnosticSnapshot(uri: string): DiagnosticSnapshot {
     };
 
     diagnosticSnapshots.set(normalizedUri, snapshot);
-    updateUnresolvedTokenSnapshot(normalizedUri, sourceToken, snapshot.diagnostics);
     return snapshot;
 }
 
@@ -781,9 +779,6 @@ async function scanWorkspaceAndRefreshDiagnostics(folders: WorkspaceFolder[]): P
 function sendPushDiagnostics(document: TextDocument): void {
     const diagnostics = validateTextDocument(document, analyzer, diagnosticSettings);
     connection.sendDiagnostics({ uri: document.uri, diagnostics });
-    const version = typeof document.version === 'number' ? document.version : null;
-    const sourceToken = `open:${version ?? 'null'}`;
-    updateUnresolvedTokenSnapshot(document.uri, sourceToken, diagnostics);
 }
 
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {

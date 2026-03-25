@@ -101,10 +101,10 @@ export function validateTextDocument(
     const diagnosticsSettings: DiagnosticSettings = {
         duplicateDefinitions: settings.duplicateDefinitions !== false,
         duplicateDefinitionsMode: settings.duplicateDefinitionsMode === 'global' ? 'global' : 'local',
-        undefinedFunctions: settings.undefinedFunctions !== false,
+        undefinedFunctions: settings.undefinedFunctions === true,
         undefinedTypes: settings.undefinedTypes === true,
-        undefinedVariables: settings.undefinedVariables !== false,
-        undefinedBindings: settings.undefinedBindings !== false,
+        undefinedVariables: settings.undefinedVariables === true,
+        undefinedBindings: settings.undefinedBindings === true,
         typeMismatchEnabled: settings.typeMismatchEnabled !== false,
         argumentCountMismatchEnabled: settings.argumentCountMismatchEnabled !== false,
         shadowingHints: settings.shadowingHints === true
@@ -437,6 +437,10 @@ export function validateTextDocument(
                         headName === 'defmacro') &&
                     i === 1
                 ) {
+                    continue;
+                }
+                if (headName === 'py-atom' && i === 1) {
+                    // The first py-atom argument is a Python-side callable path, not a MeTTa binding.
                     continue;
                 }
 

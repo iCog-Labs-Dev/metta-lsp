@@ -113,7 +113,10 @@
                     "type.returnType:metta": "#D16D6D",
                     "type.defaultLibrary.returnType:metta": "#E3A65E",
                     "boolean:metta": "#569CD6",
-                    "property:metta": "#D7BA7D"
+                    "property:metta": "#D7BA7D",
+                    "variable.undefined:metta": "#FF0000",
+                    "function.undefined:metta": "#FFB454",
+                    "property.undefined:metta": "#4FC1FF"
                 }
             }
         },
@@ -122,7 +125,7 @@
             "properties": {
                 "metta.diagnostics.duplicateDefinitions": {
                     "type": "boolean",
-                    "default": true,
+                    "default": false,
                     "description": "Enable warnings for duplicate top-level definitions with the same name and arity."
                 },
                 "metta.diagnostics.duplicateDefinitionsMode": {
@@ -143,25 +146,10 @@
                     "default": true,
                     "description": "Show user-defined function descriptions in hover using comments placed above their definitions."
                 },
-                "metta.diagnostics.undefinedFunctions": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Enable diagnostics for undefined functions."
-                },
                 "metta.diagnostics.undefinedTypes": {
                     "type": "boolean",
                     "default": true,
                     "description": "Enable diagnostics for undefined types inside ':' type declarations."
-                },
-                "metta.diagnostics.undefinedVariables": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Enable diagnostics for undefined variables."
-                },
-                "metta.diagnostics.undefinedBindings": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Enable diagnostics for undefined binding variables or functions."
                 },
                 "metta.diagnostics.typeMismatchEnabled": {
                     "type": "boolean",

@@ -133,14 +133,11 @@ Current diagnostics include:
 
 - Syntax errors and missing nodes
 - Duplicate top-level definitions (same name and arity)
-- Undefined function calls in evaluated contexts
 - Argument count mismatch for calls
 - Type mismatch for calls when typed overloads are available
 - Type contract mismatch for typed definitions (declared parameter count vs definition arity)
 - Return type mismatch for typed definitions (declared return type vs inferred final body type)
 - Undefined types inside `(: ...)` type expressions
-- Undefined scoped variables in `=`, `let`, and `let*` (including destructured binders like `($h $t)`)
-- Undefined binding symbols (symbols not built-in, user-defined, imported, or introduced by `bind!`)
 - Unbound atom-space symbols (for example `&space`) unless bound/imported; `&self` is always allowed
 - Ambiguous `!name` symbol usage warning (distinguishes from eval prefix intent)
 - Variable edge-case warnings (`#` reserved in variable names, `;` suspicious inside variable token)
@@ -152,10 +149,7 @@ The following VS Code settings control diagnostics behavior (default values show
 
 - `metta.diagnostics.duplicateDefinitions` (default: `false`)
 - `metta.diagnostics.duplicateDefinitionsMode` (default: `local`)
-- `metta.diagnostics.undefinedFunctions` (default: `false`)
 - `metta.diagnostics.undefinedTypes` (default: `true`)
-- `metta.diagnostics.undefinedVariables` (default: `false`)
-- `metta.diagnostics.undefinedBindings` (default: `false`)
 - `metta.diagnostics.typeMismatchEnabled` (default: `true`)
 - `metta.diagnostics.argumentCountMismatchEnabled` (default: `true`)
 

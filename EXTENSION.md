@@ -23,8 +23,6 @@ Full-featured Language Server Protocol (LSP) support for the [MeTTa](https://wik
   - declared parameter count vs definition arity mismatch,
   - declared return type vs inferred final body type mismatch.
 - Undefined types in `(: ...)` type expressions.
-- Undefined scoped variables in `=`, `let`, and `let*`.
-- Undefined binding symbols (not built-in, user-defined, imported, or introduced by `bind!`).
 - Unbound atom-space symbols (for example `&space`) unless bound/imported; `&self` is always valid.
 - Ambiguous `!name` symbol warning.
 - Variable edge-case warnings (`#` in variable names, suspicious `;` inside variable tokens).
@@ -36,10 +34,7 @@ Diagnostics settings (defaults from extension settings schema):
 
 - `metta.diagnostics.duplicateDefinitions` (default: `false`)
 - `metta.diagnostics.duplicateDefinitionsMode` (default: `local`)
-- `metta.diagnostics.undefinedFunctions` (default: `false`)
 - `metta.diagnostics.undefinedTypes` (default: `true`)
-- `metta.diagnostics.undefinedVariables` (default: `false`)
-- `metta.diagnostics.undefinedBindings` (default: `false`)
 - `metta.diagnostics.typeMismatchEnabled` (default: `true`)
 - `metta.diagnostics.argumentCountMismatchEnabled` (default: `true`)
 

@@ -55,7 +55,7 @@ export interface BuiltinMeta {
 const stdlibData = stdlibDataJson as StdlibData;
 const BUILTIN_ENTRIES: Record<string, BuiltinEntry> = stdlibData.builtins ?? {};
 const DEFAULT_KEYWORDS = ['if', 'let', 'let*', 'match', 'case', 'collapse', 'superpose'];
-const DEFAULT_CONSTANTS = ['True', 'False', 'Nil', 'empty', 'Cons', 'Error'];
+const DEFAULT_CONSTANTS = ['True', 'False', 'empty', 'Error'];
 const DEFAULT_TYPE_NAMES = [
     'Type',
     'Atom',
@@ -75,7 +75,8 @@ const DEFAULT_TYPE_NAMES = [
     'EagerAny',
     'LazyAny',
     'ErrorType',
-    'Unknown'
+    'Unknown',
+    'hyperon::space::DynSpace'
 ];
 
 function getCategory(entry: BuiltinEntry): BuiltinCategory {
