@@ -65,7 +65,7 @@ function isIgnorableSibling(node: SyntaxNode | null): boolean {
 }
 
 function isCallableEntry(entry: SymbolEntry): boolean {
-    return entry.op === '=' || entry.op === 'macro' || entry.op === 'defmacro';
+    return entry.op === '=' || entry.op === 'macro' || entry.op === 'defmacro' || entry.op === 'bind!';
 }
 
 function isLikelySymbolName(name: string): boolean {

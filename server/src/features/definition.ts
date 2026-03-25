@@ -49,7 +49,7 @@ function isInsideTypeExpression(node: SyntaxNode): boolean {
 }
 
 function isCallableEntryOp(op: string): boolean {
-    return op === '=' || op === 'macro' || op === 'defmacro';
+    return op === '=' || op === 'macro' || op === 'defmacro' || op === 'bind!';
 }
 
 function isCallableLookupSite(node: SyntaxNode): boolean {
