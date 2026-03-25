@@ -450,7 +450,7 @@ export function validateTextDocument(
                         start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
                         end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
                     },
-                    message: `Undefined binding variable or function '${name}'`,
+                    message: `Undefined symbol '${name}'`,
                     source: 'metta-lsp'
                 });
             }
@@ -1323,9 +1323,15 @@ function inferAtomType(
         );
     }
 
-    const hasUntypedCallableDefinition = getVisibleEntries(symbolNode.text).some(isCallableEntry);
+    const visibleEntries = getVisibleEntries(symbolNode.text);
+    const hasUntypedCallableDefinition = visibleEntries.some(isCallableEntry);
     if (hasUntypedCallableDefinition) {
         return buildTypeEvidence([], ['Symbol', 'Atom'], true);
+    }
+
+    // Unresolved symbols should surface as unresolved bindings, not as call-level type mismatch noise.
+    if (visibleEntries.length === 0) {
+        return buildTypeEvidence([createNameTypeTerm('Symbol')], ['Symbol', 'Atom'], true);
     }
 
     return buildTypeEvidence([createNameTypeTerm('Symbol')], ['Symbol', 'Atom']);

@@ -246,10 +246,33 @@ export function handleSemanticTokens(
     if (!document) return { data: [] };
 
     const text = document.getText();
-    const tree = analyzer.getTreeForDocument(normalizeUri(document.uri), text);
+    const sourceUri = normalizeUri(document.uri);
+    const tree = analyzer.getTreeForDocument(sourceUri, text);
     if (!tree) return { data: [] };
     const tokens: number[] = [];
     const pending: PendingToken[] = [];
+    const symbolStyleCache = new Map<string, TokenStyle | null>();
+
+    const getResolvedSymbolStyle = (name: string): TokenStyle | null => {
+        const cached = symbolStyleCache.get(name);
+        if (cached !== undefined) return cached;
+
+        const visibleEntries = analyzer.getVisibleEntries(name, sourceUri);
+        const hasFunctionDefinition = visibleEntries.some(
+            (entry) => entry.op === '=' || entry.op === 'macro' || entry.op === 'defmacro'
+        );
+        const hasBindingDefinition = visibleEntries.some((entry) => entry.op === 'bind!');
+
+        let style: TokenStyle | null = null;
+        if (hasFunctionDefinition) {
+            style = { type: 'function', modifierMask: 0, priority: 58 };
+        } else if (hasBindingDefinition) {
+            style = { type: 'property', modifierMask: 0, priority: 58 };
+        }
+
+        symbolStyleCache.set(name, style);
+        return style;
+    };
 
     if (highlightQuery) {
         const captures = highlightQuery.captures(tree.rootNode);
@@ -324,6 +347,14 @@ export function handleSemanticTokens(
                 continue;
             }
 
+            if (capture.name === 'symbol' && !isHeadSymbol(node)) {
+                const resolvedStyle = getResolvedSymbolStyle(node.text);
+                if (resolvedStyle) {
+                    appendToken(pending, line, char, length, resolvedStyle);
+                    continue;
+                }
+            }
+
             if (capture.name === 'function.call' && BUILTIN_SYMBOLS.has(node.text)) {
                 appendToken(pending, line, char, length, {
                     type: 'macro',
@@ -363,7 +394,7 @@ export function handleSemanticTokens(
             continue;
         }
 
-        if (message.startsWith('Undefined binding variable or function ')) {
+        if (message.startsWith('Undefined symbol ')) {
             appendToken(pending, line, char, length, {
                 type: 'property',
                 modifierMask: undefinedModifier,

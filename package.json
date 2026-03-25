@@ -107,16 +107,16 @@
             "editor.semanticTokenColorCustomizations": {
                 "enabled": true,
                 "rules": {
-                    "macro:metta": "#C586C0",
-                    "type:metta": "#FF6EC7",
-                    "type.defaultLibrary:metta": "#4EC9B0",
-                    "type.returnType:metta": "#D16D6D",
-                    "type.defaultLibrary.returnType:metta": "#E3A65E",
-                    "boolean:metta": "#569CD6",
-                    "property:metta": "#D7BA7D",
-                    "variable.undefined:metta": "#FF0000",
-                    "function.undefined:metta": "#FFB454",
-                    "property.undefined:metta": "#4FC1FF"
+                    "macro:metta": "#A855F7",
+                    "type:metta": "#2563EB",
+                    "type.defaultLibrary:metta": "#16A34A",
+                    "type.returnType:metta": "#F97316",
+                    "type.defaultLibrary.returnType:metta": "#EAB308",
+                    "boolean:metta": "#06B6D4",
+                    "property:metta": "#A16207",
+                    "variable.undefined:metta": "#DC2626",
+                    "function.undefined:metta": "#DB2777",
+                    "property.undefined:metta": "#22D3EE"
                 }
             }
         },

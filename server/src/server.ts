@@ -112,7 +112,7 @@ const unresolvedTokenSnapshots = new Map<string, UnresolvedTokenSnapshot>();
 const unresolvedTokenMessagePrefixes = [
     'Undefined function ',
     'Undefined variable ',
-    'Undefined binding variable or function ',
+    'Undefined symbol ',
     'Undefined type ',
     'Unbound space ',
     'Ambiguous symbol '

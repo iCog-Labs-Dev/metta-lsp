@@ -31,9 +31,9 @@ function parseDiagnosticImportRequest(diagnostic: Diagnostic): DiagnosticImportR
         return { kind: 'function', symbolName: functionMatch[1] };
     }
 
-    const bindingMatch = /^Undefined binding variable or function '([^']+)'/.exec(message);
-    if (bindingMatch && bindingMatch[1]) {
-        return { kind: 'binding', symbolName: bindingMatch[1] };
+    const symbolMatch = /^Undefined symbol '([^']+)'/.exec(message);
+    if (symbolMatch && symbolMatch[1]) {
+        return { kind: 'binding', symbolName: symbolMatch[1] };
     }
 
     const typeMatch = /^Undefined type '([^']+)'/.exec(message);
