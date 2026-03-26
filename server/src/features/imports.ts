@@ -8,6 +8,7 @@ export interface AutoImportCandidate {
     symbolName: string;
     entry: SymbolEntry;
     importSpec: string;
+    registerModulePath: string | null;
     targetUri: string;
 }
 
@@ -27,6 +28,36 @@ function stripQuotes(text: string): string {
     return text;
 }
 
+function normalizeImportSpec(spec: string): string {
+    let normalized = stripQuotes(spec.trim());
+    if (!normalized) return '';
+
+    normalized = normalized.replace(/\\/g, '/');
+
+    if (normalized.endsWith('/main.metta')) {
+        normalized = normalized.slice(0, -('/main.metta'.length));
+    } else if (normalized.endsWith(':main.metta')) {
+        normalized = normalized.slice(0, -(':main.metta'.length));
+    } else if (normalized.endsWith('.metta')) {
+        normalized = normalized.slice(0, -('.metta'.length));
+    }
+
+    normalized = normalized.replace(/^\.\//u, '');
+    normalized = normalized.replace(/\//g, ':');
+    return normalized;
+}
+
+function normalizeRegisterModulePath(spec: string): string {
+    let normalized = stripQuotes(spec.trim());
+    if (!normalized) return '';
+
+    normalized = normalized.replace(/\\/g, '/');
+    normalized = normalized.replace(/\/+/g, '/');
+    normalized = normalized.replace(/\/$/u, '');
+    normalized = normalized.replace(/^\.\//u, '');
+    return normalized;
+}
+
 function escapeImportSpec(spec: string): string {
     return spec.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
@@ -35,6 +66,10 @@ function formatImportSpecToken(spec: string): string {
     if (/^[^\s()"';]+$/u.test(spec)) {
         return spec;
     }
+    return `"${escapeImportSpec(spec)}"`;
+}
+
+function formatRegisterModulePathToken(spec: string): string {
     return `"${escapeImportSpec(spec)}"`;
 }
 
@@ -108,36 +143,111 @@ function collectDeclaredImportSpecs(text: string): Set<string> {
             .filter(Boolean)
             .filter((token) => !token.startsWith('&'));
         if (tokens.length === 0) continue;
-        const spec = stripQuotes(tokens[tokens.length - 1]);
+        const spec = normalizeImportSpec(tokens[tokens.length - 1] ?? '');
         if (spec) specs.add(spec);
     }
 
     return specs;
 }
 
-function buildRelativeImportSpec(sourceUri: string, targetUri: string): string | null {
+function collectDeclaredRegisterModulePaths(text: string): Set<string> {
+    const roots = new Set<string>();
+    const registerRegex = /\(\s*register-module!\s+([^)]+)\)/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = registerRegex.exec(text)) !== null) {
+        const payload = match[1] ?? '';
+        const tokens = payload
+            .split(/\s+/u)
+            .map((token) => token.trim())
+            .filter(Boolean)
+            .filter((token) => !token.startsWith('&'));
+        if (tokens.length === 0) continue;
+        const root = normalizeRegisterModulePath(tokens[0] ?? '');
+        if (root) roots.add(root);
+    }
+
+    return roots;
+}
+
+function toModulePath(filePath: string): string {
+    if (filePath.endsWith(`${path.sep}main.metta`)) {
+        return path.dirname(filePath);
+    }
+    if (filePath.endsWith('.metta')) {
+        return filePath.slice(0, -('.metta'.length));
+    }
+    return filePath;
+}
+
+function buildRegisterModulePath(sourceDir: string, registerRoot: string): string | null {
+    const rootName = path.basename(registerRoot);
+    if (rootName) {
+        const parent = path.dirname(registerRoot);
+        const relToParent = path.relative(sourceDir, parent).replace(/\\/g, '/');
+        const combined = relToParent ? `${relToParent}/${rootName}` : rootName;
+        const normalizedCombined = normalizeRegisterModulePath(combined);
+        if (normalizedCombined) return normalizedCombined;
+    }
+
+    const fallback = normalizeRegisterModulePath(path.relative(sourceDir, registerRoot).replace(/\\/g, '/'));
+    if (fallback) return fallback;
+    return null;
+}
+
+function buildRelativeImportSpec(
+    sourceUri: string,
+    targetUri: string
+): { importSpec: string; registerModulePath: string | null } | null {
     const sourcePath = uriToPath(sourceUri);
     const targetPath = uriToPath(targetUri);
     if (!sourcePath || !targetPath) return null;
 
     const sourceDir = path.dirname(sourcePath);
-    let relative = path.relative(sourceDir, targetPath).replace(/\\/g, '/');
+    const relative = path.relative(sourceDir, targetPath).replace(/\\/g, '/');
     if (!relative) return null;
 
-    if (relative.endsWith('/main.metta')) {
-        relative = relative.slice(0, -('/main.metta'.length));
-    } else if (relative.endsWith('.metta')) {
-        relative = relative.slice(0, -('.metta'.length));
+    const relativeSegments = relative.split('/').filter(Boolean);
+    let parentSegments = 0;
+    while (parentSegments < relativeSegments.length && relativeSegments[parentSegments] === '..') {
+        parentSegments += 1;
     }
 
-    relative = relative.replace(/^\.\//u, '');
-    if (!relative) return null;
-
-    // Prefer MeTTa module syntax (:) when path stays within the current module root.
-    if (!relative.startsWith('../')) {
-        relative = relative.replace(/\//g, ':');
+    if (parentSegments === 0) {
+        const importSpec = normalizeImportSpec(relative);
+        if (!importSpec) return null;
+        return { importSpec, registerModulePath: null };
     }
-    return relative;
+
+    let registerRoot = sourceDir;
+    for (let index = 0; index < parentSegments; index++) {
+        const parent = path.dirname(registerRoot);
+        if (parent === registerRoot) break;
+        registerRoot = parent;
+    }
+
+    const rootName = path.basename(registerRoot);
+    const targetModulePath = toModulePath(targetPath);
+    const relativeFromRoot = path.relative(registerRoot, targetModulePath).replace(/\\/g, '/');
+    if (relativeFromRoot.startsWith('../') || relativeFromRoot === '..') {
+        const fallbackImportSpec = normalizeImportSpec(relative);
+        if (!fallbackImportSpec) return null;
+        return { importSpec: fallbackImportSpec, registerModulePath: null };
+    }
+
+    if (!rootName) {
+        const fallbackImportSpec = normalizeImportSpec(relative);
+        if (!fallbackImportSpec) return null;
+        return { importSpec: fallbackImportSpec, registerModulePath: null };
+    }
+
+    const tail = normalizeImportSpec(relativeFromRoot);
+    const importSpec = tail ? `${rootName}:${tail}` : rootName;
+    const registerModulePath = buildRegisterModulePath(sourceDir, registerRoot);
+    return {
+        importSpec,
+        registerModulePath
+    };
 }
 
 function shouldReplaceCandidate(next: AutoImportCandidate, current: AutoImportCandidate): boolean {
@@ -180,7 +290,6 @@ export function collectAutoImportCandidates(
 
     const allowedOps = options.allowedOps;
     const visibleKeys = new Set(visibleEntries.map((entry) => entryKey(entry)));
-    const declaredImports = collectDeclaredImportSpecs(sourceText);
     const candidatesBySpec = new Map<string, AutoImportCandidate>();
 
     for (const entry of allEntries) {
@@ -196,25 +305,30 @@ export function collectAutoImportCandidates(
             continue;
         }
 
-        const importSpec = buildRelativeImportSpec(normalizedSourceUri, normalizedEntryUri);
-        if (!importSpec || declaredImports.has(importSpec)) {
+        const importRef = buildRelativeImportSpec(normalizedSourceUri, normalizedEntryUri);
+        if (!importRef) {
             continue;
         }
 
         const candidate: AutoImportCandidate = {
             symbolName,
             entry,
-            importSpec,
+            importSpec: importRef.importSpec,
+            registerModulePath: importRef.registerModulePath,
             targetUri: normalizedEntryUri
         };
-        const existing = candidatesBySpec.get(importSpec);
+        const key = `${candidate.registerModulePath ?? ''}\u0000${candidate.importSpec}`;
+        const existing = candidatesBySpec.get(key);
         if (!existing || shouldReplaceCandidate(candidate, existing)) {
-            candidatesBySpec.set(importSpec, candidate);
+            candidatesBySpec.set(key, candidate);
         }
     }
 
     const candidates = Array.from(candidatesBySpec.values());
     candidates.sort((left, right) => {
+        if (Boolean(left.registerModulePath) !== Boolean(right.registerModulePath)) {
+            return left.registerModulePath ? 1 : -1;
+        }
         const leftScore = importSpecScore(left.importSpec);
         const rightScore = importSpecScore(right.importSpec);
         if (leftScore.parents !== rightScore.parents) {
@@ -235,16 +349,41 @@ export function collectAutoImportCandidates(
     return candidates;
 }
 
-export function buildAutoImportEdit(sourceText: string, importSpec: string): TextEdit | null {
+export function buildAutoImportEdit(
+    sourceText: string,
+    importSpec: string,
+    registerModulePath: string | null = null
+): TextEdit | null {
+    const normalizedImportSpec = normalizeImportSpec(importSpec);
+    if (!normalizedImportSpec) {
+        return null;
+    }
+
     const declaredImports = collectDeclaredImportSpecs(sourceText);
-    if (declaredImports.has(importSpec)) {
+    const normalizedRegisterPath = registerModulePath
+        ? normalizeRegisterModulePath(registerModulePath)
+        : '';
+    const declaredRegisterPaths = collectDeclaredRegisterModulePaths(sourceText);
+
+    const shouldInsertImport = !declaredImports.has(normalizedImportSpec);
+    const shouldInsertRegister = Boolean(normalizedRegisterPath) &&
+        !declaredRegisterPaths.has(normalizedRegisterPath);
+    if (!shouldInsertImport && !shouldInsertRegister) {
         return null;
     }
 
     const insertion = findImportInsertionPosition(sourceText);
-    const token = formatImportSpecToken(importSpec);
+    const token = formatImportSpecToken(normalizedImportSpec);
+    const lines: string[] = [];
+    if (shouldInsertRegister && normalizedRegisterPath) {
+        const registerToken = formatRegisterModulePathToken(normalizedRegisterPath);
+        lines.push(`! (register-module! ${registerToken})`);
+    }
+    if (shouldInsertImport) {
+        lines.push(`! (import! &self ${token})`);
+    }
     return {
         range: { start: insertion, end: insertion },
-        newText: `! (import! &self ${token})\n`
+        newText: `${lines.join('\n')}\n`
     };
 }

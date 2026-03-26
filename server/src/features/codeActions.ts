@@ -104,10 +104,16 @@ export function handleCodeActions(
 
         for (let index = 0; index < candidates.length; index++) {
             const candidate = candidates[index];
-            const edit = buildAutoImportEdit(sourceText, candidate.importSpec);
+            const edit = buildAutoImportEdit(
+                sourceText,
+                candidate.importSpec,
+                candidate.registerModulePath
+            );
             if (!edit) continue;
 
-            const dedupeKey = `${request.kind}:${request.symbolName}:${candidate.importSpec}`;
+            const dedupeKey =
+                `${request.kind}:${request.symbolName}:` +
+                `${candidate.registerModulePath ?? ''}:${candidate.importSpec}`;
             if (seen.has(dedupeKey)) continue;
             seen.add(dedupeKey);
 

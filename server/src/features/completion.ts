@@ -58,12 +58,18 @@ function inferEntryArity(entry: SymbolEntry): number | null {
     return arityFromTypeSignature(typeSig);
 }
 
-function autoImportDetail(entry: SymbolEntry, importSpec: string): string {
+function autoImportDetail(
+    entry: SymbolEntry,
+    importSpec: string,
+    registerModulePath: string | null
+): string {
     const arity = inferEntryArity(entry);
     const typeSig = entry.immediateTypeSignature ?? entry.typeSignature;
     const sourcePath = uriToPath(entry.uri);
     const sourceLabel = sourcePath ? path.basename(sourcePath) : entry.uri;
-    const fragments = [`Auto import from ${importSpec}`];
+    const fragments = registerModulePath
+        ? [`Auto import ${importSpec} (register ${registerModulePath})`]
+        : [`Auto import from ${importSpec}`];
 
     if (arity !== null) {
         fragments.push(`arity ${arity}`);
@@ -142,13 +148,21 @@ export function handleCompletion(params: CompletionParams, analyzer: Analyzer): 
 
         for (let index = 0; index < candidates.length; index++) {
             const candidate = candidates[index];
-            const edit = buildAutoImportEdit(sourceText, candidate.importSpec);
+            const edit = buildAutoImportEdit(
+                sourceText,
+                candidate.importSpec,
+                candidate.registerModulePath
+            );
             if (!edit) continue;
 
             autoImports.push({
                 label: symbol,
                 kind: CompletionItemKind.Function,
-                detail: autoImportDetail(candidate.entry, candidate.importSpec),
+                detail: autoImportDetail(
+                    candidate.entry,
+                    candidate.importSpec,
+                    candidate.registerModulePath
+                ),
                 additionalTextEdits: [edit],
                 sortText: `zz_${symbol}_${index.toString().padStart(2, '0')}`
             });
