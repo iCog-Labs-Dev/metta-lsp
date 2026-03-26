@@ -1,28 +1,3 @@
-/**
- * scoping.ts
- *
- * Local scope resolution engine for the MeTTa LSP server.
- *
- * Responsibilities
- * ─────────────────
- * 1. Build a rich LocalScope tree from an AST (augmenting the lightweight
- *    ScopeTree already stored on the Analyzer).
- * 2. Collect every local binding introduced by =, let, let*, match, case, →
- *    together with its exact source position.
- * 3. Resolve which binding a variable/symbol reference refers to, walking the
- *    scope chain from innermost outward (shadowing-aware).
- * 4. Detect shadowing and out-of-scope usage for diagnostics.
- * 5. Provide scope-filtered symbol lists for completions.
- *
- * Design notes
- * ─────────────
- * • We do NOT re-parse the tree; we receive a Parser.Tree that the Analyzer
- *   has already produced.
- * • We work purely at the AST level so the logic is grammar-independent.
- * • This module is stateless – callers pass a tree and get back a result;
- *   caching is the Analyzer's responsibility.
- */
-
 import type Parser from 'tree-sitter';
 import type { Range } from 'vscode-languageserver/node';
 
