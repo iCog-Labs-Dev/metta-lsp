@@ -172,11 +172,15 @@
         "typecheck": "tsc --noEmit",
         "watch": "esbuild client/src/extension.ts --bundle --platform=node --external:vscode --outfile=dist/extension.js --watch",
         "server:start": "npm run build:server && npm run start --prefix server",
+        "grammar:prebuild": "npm run prebuildify --prefix grammar",
         "grammar:generate": "npm run generate --prefix grammar",
         "grammar:build": "npm run build --prefix grammar",
         "grammar:test": "npm run test --prefix grammar",
         "grammar:generate-highlights": "npm run generate-highlights --prefix grammar",
-        "package": "npm run build && vsce package --readme-path EXTENSION.md",
+        "verify:prebuilds:current": "node scripts/verify-prebuilds.mjs --current",
+        "verify:prebuilds:release": "node scripts/verify-prebuilds.mjs --platforms win32,linux,darwin",
+        "package": "npm run build && npm run grammar:prebuild && npm run verify:prebuilds:current && vsce package --readme-path EXTENSION.md",
+        "package:release": "npm run build && npm run verify:prebuilds:release && vsce package --readme-path EXTENSION.md",
         "vscode:prepublish": "npm run build"
     },
     "dependencies": {

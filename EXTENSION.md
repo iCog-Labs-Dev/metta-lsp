@@ -108,6 +108,8 @@ If you like editing `settings.json`, use this example:
 2. Open VS Code -> Extensions (`Ctrl+Shift+X`) -> `...` menu -> Install from VSIX...
 3. Select the `.vsix` file
 
+The release VSIX bundles the native Tree-sitter grammar binaries needed by the extension, so end users do not need local build tools.
+
 ### From Marketplace
 
 Search for **MeTTa Language Support** in the VS Code Extensions panel.

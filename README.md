@@ -22,7 +22,12 @@ The extension client and language server source are implemented in strict TypeSc
 ## Prerequisites
 
 - Node.js v20+
-- C++ Build Tools for compiling the Tree-sitter native grammar (for example Visual Studio Build Tools on Windows)
+
+For local development builds, you also need native build tools for the Tree-sitter grammar on your current OS:
+
+- Windows: Visual Studio Build Tools
+- Linux: GCC/Clang, `make`, and Python
+- macOS: Xcode Command Line Tools
 
 ## Getting Started
 
@@ -48,8 +53,9 @@ npm run server:start # build server and run language server process
 npm run grammar:build
 npm run grammar:test
 npm run grammar:generate
+npm run grammar:prebuild
 npm run grammar:generate-highlights
-npm run package      # build + create .vsix
+npm run package      # build + current-platform prebuild + create .vsix
 ```
 
 The packaged `.vsix` file is created in the project root.
@@ -65,6 +71,10 @@ npm run package
 
 The `package` script uses `vsce package --readme-path EXTENSION.md`, so repository `README.md` is never renamed or overwritten during packaging.
 
+`npm run package` creates a VSIX with a native grammar prebuild for the current OS only.
+
+To assemble a release VSIX that carries Windows, Linux, and macOS grammar binaries together, use the GitHub Actions workflow at [.github/workflows/build-vsix.yml](.github/workflows/build-vsix.yml). It builds native prebuilds on each OS, downloads them into `grammar/prebuilds/`, verifies the set, and then packages the final extension artifact.
+
 Output:
 
 - A file like `vscode-metta-<version>.vsix` is generated in the repository root.
@@ -74,6 +84,8 @@ Optional direct command (without the repo wrapper script):
 ```powershell
 npx @vscode/vsce package --readme-path EXTENSION.md
 ```
+
+Use the direct `vsce` command only after the required `grammar/prebuilds/` files already exist. For local packaging, the wrapper script is the safer path.
 
 ## Project Structure
 

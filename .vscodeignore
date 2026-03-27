@@ -6,7 +6,6 @@
 !grammar/src/node-types.json
 !grammar/queries/**
 !grammar/syntaxes/**
-!grammar/build/Release/*.node
 !grammar/prebuilds/**
 !client/language-configuration.json
 !package.json
