@@ -236,6 +236,7 @@ export function validateTextDocument(
     });
     validateAmbiguousBangSymbols(tree.rootNode, diagnostics);
     validateVariableEdgeCases(tree.rootNode, diagnostics);
+    validateEqualsDefinitionShape(tree.rootNode, diagnostics);
     validateLocalBindingRedeclarations(tree.rootNode, diagnostics);
 
     const definitionsBySignature = new Map<string, SyntaxNode[]>();
@@ -627,6 +628,56 @@ function validateVariableEdgeCases(rootNode: SyntaxNode, diagnostics: Diagnostic
                 message: `Suspicious variable '${variableText}': ';' may be parsed as part of the variable instead of starting a comment`,
                 source: 'metta-lsp'
             });
+        }
+    });
+}
+
+function validateEqualsDefinitionShape(rootNode: SyntaxNode, diagnostics: Diagnostic[]): void {
+    function report(node: SyntaxNode, message: string): void {
+        diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: {
+                start: { line: node.startPosition.row, character: node.startPosition.column },
+                end: { line: node.endPosition.row, character: node.endPosition.column }
+            },
+            message,
+            source: 'metta-lsp'
+        });
+    }
+
+    traverseTree(rootNode, (node) => {
+        if (node.type !== 'list') return;
+        if (node.parent?.type !== 'source_file') return;
+        if (containsParseError(node)) return;
+        if (getHeadSymbol(node) !== '=') return;
+
+        const namedChildren = getNamedChildren(node);
+        if (namedChildren.length < 2) return;
+
+        const definitionHead = namedChildren[1] ?? null;
+        if (!definitionHead || definitionHead.type !== 'list') {
+            report(
+                definitionHead ?? node,
+                `Invalid '=' definition: expected a signature list of the form '(name ...)'`
+            );
+            return;
+        }
+
+        const signatureParts = getNamedChildren(definitionHead);
+        if (signatureParts.length === 0 || !getAtomSymbol(signatureParts[0] ?? null)) {
+            report(
+                definitionHead,
+                `Invalid '=' definition: expected a function name symbol as the first item in the signature`
+            );
+            return;
+        }
+
+        if (namedChildren.length !== 3) {
+            const functionName = getAtomSymbol(signatureParts[0] ?? null) ?? 'definition';
+            report(
+                node,
+                `Invalid '=' definition for '${functionName}': expected exactly one implementation expression`
+            );
         }
     });
 }
