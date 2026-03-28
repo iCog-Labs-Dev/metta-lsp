@@ -27,6 +27,8 @@ interface TypeEvidence {
     unknown: boolean;
 }
 
+type ActiveBindingKind = 'parameter' | 'local';
+
 function getNamedChildren(node: SyntaxNode): SyntaxNode[] {
     return node.children.filter((child) => child.type === 'atom' || child.type === 'list');
 }
@@ -103,6 +105,27 @@ function containsParseError(node: SyntaxNode): boolean {
     }
 
     return false;
+}
+
+function collectPatternVariableNodes(
+    patternNode: SyntaxNode | null,
+    out: SyntaxNode[] = []
+): SyntaxNode[] {
+    if (!patternNode) return out;
+
+    if (patternNode.type === 'atom') {
+        const variableNode = patternNode.children.find((child) => child.type === 'variable');
+        if (variableNode) out.push(variableNode);
+        return out;
+    }
+
+    if (patternNode.type === 'list') {
+        for (const child of getNamedChildren(patternNode)) {
+            collectPatternVariableNodes(child, out);
+        }
+    }
+
+    return out;
 }
 
 export function validateTextDocument(
@@ -213,6 +236,7 @@ export function validateTextDocument(
     });
     validateAmbiguousBangSymbols(tree.rootNode, diagnostics);
     validateVariableEdgeCases(tree.rootNode, diagnostics);
+    validateLocalBindingRedeclarations(tree.rootNode, diagnostics);
 
     const definitionsBySignature = new Map<string, SyntaxNode[]>();
     const matches = analyzer.symbolQuery?.matches(tree.rootNode) ?? [];
@@ -605,6 +629,211 @@ function validateVariableEdgeCases(rootNode: SyntaxNode, diagnostics: Diagnostic
             });
         }
     });
+}
+
+function validateLocalBindingRedeclarations(rootNode: SyntaxNode, diagnostics: Diagnostic[]): void {
+    function report(node: SyntaxNode, message: string): void {
+        diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: {
+                start: { line: node.startPosition.row, character: node.startPosition.column },
+                end: { line: node.endPosition.row, character: node.endPosition.column }
+            },
+            message,
+            source: 'metta-lsp'
+        });
+    }
+
+    function collectDefinitionParameters(signatureNode: SyntaxNode | null): Map<string, ActiveBindingKind> {
+        const bindings = new Map<string, ActiveBindingKind>();
+        if (!signatureNode || signatureNode.type !== 'list') return bindings;
+
+        const signatureParts = getNamedChildren(signatureNode);
+        for (let i = 1; i < signatureParts.length; i++) {
+            for (const variableNode of collectPatternVariableNodes(signatureParts[i])) {
+                if (!bindings.has(variableNode.text)) {
+                    bindings.set(variableNode.text, 'parameter');
+                }
+            }
+        }
+
+        return bindings;
+    }
+
+    function extendBindings(
+        activeBindings: ReadonlyMap<string, ActiveBindingKind>,
+        names: Iterable<string>
+    ): Map<string, ActiveBindingKind> {
+        const next = new Map(activeBindings);
+        for (const name of names) {
+            next.set(name, 'local');
+        }
+        return next;
+    }
+
+    function validateBinderPattern(
+        binderNode: SyntaxNode | null,
+        activeBindings: ReadonlyMap<string, ActiveBindingKind>,
+        binderKind: 'let' | 'let*' | 'chain'
+    ): Set<string> {
+        const introducedNames = new Set<string>();
+
+        for (const variableNode of collectPatternVariableNodes(binderNode)) {
+            const variableName = variableNode.text;
+
+            if (introducedNames.has(variableName)) {
+                report(variableNode, `Duplicate variable '${variableName}' in ${binderKind} binding pattern`);
+                continue;
+            }
+
+            const activeKind = activeBindings.get(variableName);
+            if (activeKind === 'parameter') {
+                report(variableNode, `Invalid ${binderKind} binding '${variableName}': cannot redeclare function parameter`);
+            } else if (activeKind === 'local') {
+                report(variableNode, `Invalid ${binderKind} binding '${variableName}': cannot redeclare active local binding`);
+            }
+
+            introducedNames.add(variableName);
+        }
+
+        return introducedNames;
+    }
+
+    function visit(
+        node: SyntaxNode | null,
+        activeBindings: ReadonlyMap<string, ActiveBindingKind>,
+        checkBindings: boolean
+    ): void {
+        if (!node) return;
+
+        if (node.type !== 'list') {
+            for (let i = 0; i < node.namedChildCount; i++) {
+                visit(node.namedChild(i), activeBindings, checkBindings);
+            }
+            return;
+        }
+
+        const children = getNamedChildren(node);
+        if (children.length === 0) return;
+
+        const headSymbol = getHeadSymbol(node);
+
+        if (headSymbol === '=') {
+            const definitionBindings = collectDefinitionParameters(children[1] ?? null);
+            for (const bodyNode of children.slice(2)) {
+                visit(bodyNode, definitionBindings, true);
+            }
+            return;
+        }
+
+        if (headSymbol === 'let') {
+            if (!checkBindings) {
+                for (const child of children) {
+                    visit(child, activeBindings, checkBindings);
+                }
+                return;
+            }
+
+            const binderNode = children[1] ?? null;
+            const valueNode = children[2] ?? null;
+            if (valueNode) {
+                visit(valueNode, activeBindings, true);
+            }
+
+            const bodyBindings = extendBindings(
+                activeBindings,
+                validateBinderPattern(binderNode, activeBindings, 'let')
+            );
+
+            for (const bodyNode of children.slice(3)) {
+                visit(bodyNode, bodyBindings, true);
+            }
+            return;
+        }
+
+        if (headSymbol === 'let*') {
+            if (!checkBindings) {
+                for (const child of children) {
+                    visit(child, activeBindings, checkBindings);
+                }
+                return;
+            }
+
+            let sequentialBindings = new Map(activeBindings);
+            const bindingsListNode = children[1] ?? null;
+
+            if (bindingsListNode && bindingsListNode.type === 'list') {
+                const bindingPairs = getNamedChildren(bindingsListNode).filter((child) => child.type === 'list');
+                for (const bindingPair of bindingPairs) {
+                    const bindingParts = getNamedChildren(bindingPair);
+                    const binderNode = bindingParts[0] ?? null;
+
+                    for (const valueNode of bindingParts.slice(1)) {
+                        visit(valueNode, sequentialBindings, true);
+                    }
+
+                    sequentialBindings = extendBindings(
+                        sequentialBindings,
+                        validateBinderPattern(binderNode, sequentialBindings, 'let*')
+                    );
+                }
+            }
+
+            for (const bodyNode of children.slice(2)) {
+                visit(bodyNode, sequentialBindings, true);
+            }
+            return;
+        }
+
+        if (headSymbol === 'chain') {
+            if (!checkBindings) {
+                for (const child of children) {
+                    visit(child, activeBindings, checkBindings);
+                }
+                return;
+            }
+
+            const valueNode = children[1] ?? null;
+            const binderNode = children[2] ?? null;
+            if (valueNode) {
+                visit(valueNode, activeBindings, true);
+            }
+
+            const bodyBindings = extendBindings(
+                activeBindings,
+                validateBinderPattern(binderNode, activeBindings, 'chain')
+            );
+
+            for (const bodyNode of children.slice(3)) {
+                visit(bodyNode, bodyBindings, true);
+            }
+            return;
+        }
+
+        for (const child of children) {
+            visit(child, activeBindings, checkBindings);
+        }
+    }
+
+    traverseTree(rootNode, (node) => {
+        if (node.type !== 'list' || getHeadSymbol(node) !== '=') {
+            return;
+        }
+
+        if (node.parent?.type !== 'source_file') {
+            return;
+        }
+
+        const children = getNamedChildren(node);
+        const definitionBindings = collectDefinitionParameters(children[1] ?? null);
+        for (const bodyNode of children.slice(2)) {
+            visit(bodyNode, definitionBindings, true);
+        }
+    });
+
+    for (const form of collectTopLevelEvaluatedForms(rootNode)) {
+        visit(form, new Map(), true);
+    }
 }
 
 function isInsideCaseBranches(node: SyntaxNode): boolean {
@@ -1913,12 +2142,40 @@ function validateUndefinedVariables(rootNode: SyntaxNode, diagnostics: Diagnosti
             return;
         }
 
+        if (headSymbol === 'chain') {
+            if (!checkVars) {
+                for (let i = 0; i < node.namedChildCount; i++) {
+                    visit(node.namedChild(i), env, checkVars);
+                }
+                return;
+            }
+
+            const exprNode = children[1] ?? null;
+            const binderAtom = children[2] ?? null;
+            const bodyNodes = children.slice(3);
+
+            if (exprNode) visit(exprNode, env, true);
+
+            const localEnv = new Set(env);
+            for (const variableName of collectPatternVariables(binderAtom)) {
+                localEnv.add(variableName);
+            }
+
+            for (const bodyNode of bodyNodes) {
+                visit(bodyNode, localEnv, true);
+            }
+            return;
+        }
+
         for (const child of children) {
             visit(child, env, checkVars);
         }
     }
 
     visit(rootNode, new Set<string>(), false);
+    for (const form of collectTopLevelEvaluatedForms(rootNode)) {
+        visit(form, new Set<string>(), true);
+    }
 }
 
 function traverseTree(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {

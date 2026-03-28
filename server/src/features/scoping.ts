@@ -44,6 +44,7 @@ export type BindingOrigin =
     | 'definition-param'   // parameter of a (= (fn $x) body) definition
     | 'let-binder'         // binder in (let $x val body)
     | 'let*-binder'        // binder in (let* (($x val)…) body)
+    | 'chain-binder'       // binder in (chain expr $x body)
     | 'match-pattern'      // pattern variable in (match space pat body)
     | 'case-branch'        // pattern variable in a case branch
     | 'lambda-param';      // parameter in a (-> …) lambda/arrow form
@@ -275,6 +276,29 @@ function buildScopes(
     }
 
     // ── (match space pattern body) ────────────────────────────────────────
+    if (head === 'chain' && children.length >= 4) {
+        const chainScope = makeScope(node, currentScope);
+        currentScope.children.push(chainScope);
+        index.set(chainScope.id, chainScope);
+
+        const exprNode = children[1];
+        const binderNode = children[2];
+
+        if (exprNode) buildScopes(exprNode, currentScope, index, allBindings);
+
+        if (binderNode) {
+            for (const binder of collectPatternBinders(binderNode)) {
+                addBinding(chainScope, binder, 'chain-binder', allBindings);
+            }
+        }
+
+        for (let i = 3; i < children.length; i++) {
+            const child = children[i];
+            if (child) buildScopes(child, chainScope, index, allBindings);
+        }
+        return;
+    }
+
     if (head === 'match' && children.length >= 4) {
         const matchScope = makeScope(node, currentScope);
         currentScope.children.push(matchScope);
