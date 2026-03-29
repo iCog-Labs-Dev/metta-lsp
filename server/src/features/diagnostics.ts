@@ -71,6 +71,10 @@ function getAtomVariable(atomNode: SyntaxNode | null): string | null {
     return variableNode ? variableNode.text : null;
 }
 
+function isRedeclarationExemptVariable(name: string): boolean {
+    return name === '$_';
+}
+
 function isIgnorableSibling(node: SyntaxNode | null): boolean {
     if (!node) return true;
     if (node.type === 'comment') return true;
@@ -731,6 +735,11 @@ function validateLocalBindingRedeclarations(rootNode: SyntaxNode, diagnostics: D
 
         for (const variableNode of collectPatternVariableNodes(binderNode)) {
             const variableName = variableNode.text;
+
+            if (isRedeclarationExemptVariable(variableName)) {
+                introducedNames.add(variableName);
+                continue;
+            }
 
             if (introducedNames.has(variableName)) {
                 report(variableNode, `Duplicate variable '${variableName}' in ${binderKind} binding pattern`);
