@@ -1112,12 +1112,18 @@ function validateDefinitionTypeContracts(
                 getTypedOverloads,
                 inferenceCache,
                 inferenceInProgress,
-                parameterTypeEnvironment
+                parameterTypeEnvironment,
+                parsedContract.returnTerm
             )
             : buildTypeEvidence([], ['Expression', 'Atom'], true);
 
-        const returnMatches = matchExpectedToEvidence(parsedContract.returnTerm, inferredReturn, new Map());
-        if (returnMatches.length > 0) return;
+        const returnTerm = parsedContract.returnTerm;
+        const returnMatches = matchExpectedToEvidence(returnTerm, inferredReturn, new Map());
+        const allCandidatesMatch = inferredReturn.candidates.length === 0 || inferredReturn.candidates.every(cand => 
+            matchTypeTerms(returnTerm, cand, new Map())
+        );
+
+        if (allCandidatesMatch && (returnMatches.length > 0 || !inferredReturn.unknown)) return;
 
         diagnostics.push({
             severity: DiagnosticSeverity.Error,
@@ -1129,6 +1135,25 @@ function validateDefinitionTypeContracts(
             source: 'metta-lsp'
         });
     });
+}
+
+function typeTermToOverload(term: TypeTerm): TypedOverload | null {
+    if (term.kind !== 'compound') return null;
+    const headName = getTermName(term.head);
+    if (headName !== '->') return null;
+
+    const parts = term.args;
+    if (parts.length === 0) return null;
+
+    const paramTerms = parts.slice(0, -1);
+    const returnTerm = parts[parts.length - 1];
+
+    return {
+        paramTypes: paramTerms.map(typeTermToString),
+        returnType: typeTermToString(returnTerm),
+        paramTerms,
+        returnTerm
+    };
 }
 
 function validateCallTypeSignatures(
@@ -1148,82 +1173,176 @@ function validateCallTypeSignatures(
     const inferenceCache = new Map<string, TypeEvidence>();
     const inferenceInProgress = new Set<string>();
 
-    traverseTree(rootNode, (node) => {
-        if (node.type !== 'list') return;
-        if (containsParseError(node)) return;
+    function visit(node: SyntaxNode | null, env: Map<string, TypeTerm>): void {
+        if (!node) return;
 
-        const namedChildren = getNamedChildren(node);
-        if (namedChildren.length === 0) return;
+        if (node.type === 'list') {
+            if (containsParseError(node)) return;
 
-        const head = namedChildren[0];
-        if (head.type !== 'atom') return;
-        const symbolNode = head.children.find((child) => child.type === 'symbol');
-        if (!symbolNode) return;
+            const namedChildren = getNamedChildren(node);
+            if (namedChildren.length === 0) return;
 
-        const name = symbolNode.text;
-        if (nonCallableForms.has(name)) return;
-        if (name.startsWith('$')) return;
+            const head = namedChildren[0];
+            const headSymbol = getHeadSymbol(node);
 
-        const parent = node.parent;
-        if (parent && parent.type === 'list') {
-            const parentNamed = getNamedChildren(parent);
-            const parentHead = parentNamed[0]?.text;
-            if (
-                parentNamed.length > 0 &&
-                (parentHead === '=' ||
-                    parentHead === ':' ||
-                    parentHead === '->' ||
-                    parentHead === 'macro' ||
-                    parentHead === 'defmacro') &&
-                (parentNamed[1] === node || parentNamed[1] === head)
-            ) {
+            if (headSymbol === '=') {
+                const defHead = namedChildren[1] ?? null;
+                const bodyNodes = namedChildren.slice(2);
+                const localEnv = new Map(env);
+
+                if (defHead && defHead.type === 'list') {
+                    const signatureParts = getNamedChildren(defHead);
+                    const functionName = getAtomSymbol(signatureParts[0] ?? null);
+                    if (functionName) {
+                        const typeSignature = findImmediateTypeSignatureForDefinition(node, functionName);
+                        if (typeSignature) {
+                            const parsedContract = parseArrowType(typeSignature);
+                            if (parsedContract) {
+                                const parameterNodes = signatureParts.slice(1);
+                                const count = Math.min(parameterNodes.length, parsedContract.paramTerms.length);
+                                for (let i = 0; i < count; i++) {
+                                    for (const varName of collectPatternVariablesForTypeEnv(parameterNodes[i])) {
+                                        localEnv.set(varName, parsedContract.paramTerms[i]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (const bodyNode of bodyNodes) {
+                    visit(bodyNode, localEnv);
+                }
                 return;
             }
+
+            if (headSymbol === 'let' || headSymbol === 'let*' || headSymbol === 'chain') {
+                // For simplicity in this phase, we skip complex environment tracking for let/let*/chain 
+                // as it requires full type inference of the assigned expressions.
+                // We will just visit children with the current environment.
+                for (const child of namedChildren) {
+                    visit(child, env);
+                }
+                return;
+            }
+
+            // Normal Call Validation
+            let overloads: TypedOverload[] = [];
+            let nameForReport = '';
+            let errorNode: SyntaxNode | null = null;
+
+            if (head.type === 'atom') {
+                const symbolNode = head.children.find((child) => child.type === 'symbol');
+                const variableNode = head.children.find((child) => child.type === 'variable');
+
+                if (symbolNode) {
+                    const name = symbolNode.text;
+                    if (!nonCallableForms.has(name) && !name.startsWith('$')) {
+                        const isBound = boundSymbols.has(name) && getVisibleEntries(name).length === 0;
+                        if (!isBound) {
+                            const parent = node.parent;
+                            let shouldSkip = false;
+                            if (parent && parent.type === 'list') {
+                                const parentNamed = getNamedChildren(parent);
+                                const parentHead = parentNamed[0]?.text;
+                                if (
+                                    (parentHead === '=' ||
+                                        parentHead === ':' ||
+                                        parentHead === '->' ||
+                                        parentHead === 'macro' ||
+                                        parentHead === 'defmacro') &&
+                                    (parentNamed[1] === node || parentNamed[1] === head)
+                                ) {
+                                    shouldSkip = true;
+                                }
+                            }
+
+                            if (!shouldSkip) {
+                                overloads = getTypedOverloads(name);
+                                nameForReport = name;
+                                errorNode = symbolNode;
+                            }
+                        }
+                    }
+                } else if (variableNode) {
+                    const name = variableNode.text;
+                    const type = env.get(name);
+                    if (type) {
+                        const overload = typeTermToOverload(type);
+                        if (overload) {
+                            overloads = [overload];
+                            nameForReport = name;
+                            errorNode = variableNode;
+                        }
+                    }
+                }
+            }
+
+            if (overloads.length > 0 && errorNode) {
+                const args = namedChildren.slice(1);
+                const callArity = args.length;
+                const arityOverloads = overloads.filter((ov) => ov.paramTypes.length === callArity);
+
+                if (arityOverloads.length === 0) {
+                    // Arity mismatch for variables or symbols with signatures
+                    const concreteArities = Array.from(new Set(overloads.map(ov => ov.paramTypes.length))).sort((a,b) => a-b);
+                    diagnostics.push({
+                        severity: DiagnosticSeverity.Error,
+                        range: {
+                            start: { line: errorNode.startPosition.row, character: errorNode.startPosition.column },
+                            end: { line: errorNode.endPosition.row, character: errorNode.endPosition.column }
+                        },
+                        message: `Argument count mismatch for '${nameForReport}': expected ${formatExpectedArities(concreteArities)}, got ${callArity}`,
+                        source: 'metta-lsp'
+                    });
+                } else {
+                    const argTypes = args.map((arg) =>
+                        inferArgumentType(arg, getVisibleEntries, getTypedOverloads, inferenceCache, inferenceInProgress, env)
+                    );
+                    const matching = arityOverloads.filter((overload) =>
+                        matchOverload(overload, argTypes).length > 0
+                    );
+
+                    if (matching.length === 0) {
+                        const expected = arityOverloads.map((overload) => `(${overload.paramTypes.join(', ')})`).join(' or ');
+                        diagnostics.push({
+                            severity: DiagnosticSeverity.Error,
+                            range: {
+                                start: { line: errorNode.startPosition.row, character: errorNode.startPosition.column },
+                                end: { line: errorNode.endPosition.row, character: errorNode.endPosition.column }
+                            },
+                            message: `Type mismatch for '${nameForReport}': argument types [${argTypes.map(typeEvidenceToString).join(', ')}] do not match ${expected}`,
+                            source: 'metta-lsp'
+                        });
+                    } else if (matching.length > 1) {
+                        diagnostics.push({
+                            severity: DiagnosticSeverity.Warning,
+                            range: {
+                                start: { line: errorNode.startPosition.row, character: errorNode.startPosition.column },
+                                end: { line: errorNode.endPosition.row, character: errorNode.endPosition.column }
+                            },
+                            message: `Ambiguous reference '${nameForReport}': ${matching.length} matching typed overloads for ${callArity} argument(s)`,
+                            source: 'metta-lsp'
+                        });
+                    }
+                }
+            }
+
+            // Continue visiting children
+            for (const child of namedChildren) {
+                visit(child, env);
+            }
+        } else {
+            for (let i = 0; i < node.childCount; i++) {
+                visit(node.child(i), env);
+            }
         }
+    }
 
-        if (boundSymbols.has(name) && getVisibleEntries(name).length === 0) {
-            return;
-        }
-
-        const args = namedChildren.slice(1);
-        const callArity = args.length;
-        const overloads = getTypedOverloads(name)
-            .filter((overload) => overload.paramTypes.length === callArity);
-        if (overloads.length === 0) return;
-
-        const argTypes = args.map((arg) =>
-            inferArgumentType(arg, getVisibleEntries, getTypedOverloads, inferenceCache, inferenceInProgress)
-        );
-        const matching = overloads.filter((overload) =>
-            matchOverload(overload, argTypes).length > 0
-        );
-
-        if (matching.length === 0) {
-            const expected = overloads.map((overload) => `(${overload.paramTypes.join(', ')})`).join(' or ');
-            diagnostics.push({
-                severity: DiagnosticSeverity.Error,
-                range: {
-                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
-                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
-                },
-                message: `Type mismatch for '${name}': argument types [${argTypes.map(typeEvidenceToString).join(', ')}] do not match ${expected}`,
-                source: 'metta-lsp'
-            });
-            return;
-        }
-
-        if (matching.length > 1) {
-            diagnostics.push({
-                severity: DiagnosticSeverity.Warning,
-                range: {
-                    start: { line: symbolNode.startPosition.row, character: symbolNode.startPosition.column },
-                    end: { line: symbolNode.endPosition.row, character: symbolNode.endPosition.column }
-                },
-                message: `Ambiguous reference '${name}': ${matching.length} matching typed overloads for ${callArity} argument(s)`,
-                source: 'metta-lsp'
-            });
-        }
-    });
+    visit(rootNode, new Map());
+    for (const form of collectTopLevelEvaluatedForms(rootNode)) {
+        visit(form, new Map());
+    }
 }
 
 function collectTopLevelEvaluatedForms(rootNode: SyntaxNode): SyntaxNode[] {
@@ -1574,7 +1693,8 @@ function inferArgumentType(
     getTypedOverloads: (name: string) => TypedOverload[],
     cache: Map<string, TypeEvidence>,
     inProgress: Set<string>,
-    parameterTypeEnvironment: Map<string, TypeTerm> | null = null
+    parameterTypeEnvironment: Map<string, TypeTerm> | null = null,
+    expectedReturnType: TypeTerm | null = null
 ): TypeEvidence {
     if (!node) return buildTypeEvidence([], ['Atom'], true);
 
@@ -1583,6 +1703,9 @@ function inferArgumentType(
     if (cached) return cached;
 
     if (inProgress.has(key)) {
+        if (expectedReturnType) {
+            return buildTypeEvidence([expectedReturnType], ['Expression', 'Atom']);
+        }
         return buildTypeEvidence([], ['Expression', 'Atom'], true);
     }
     inProgress.add(key);
@@ -1597,7 +1720,8 @@ function inferArgumentType(
             getTypedOverloads,
             cache,
             inProgress,
-            parameterTypeEnvironment
+            parameterTypeEnvironment,
+            expectedReturnType
         );
     } else {
         inferred = buildTypeEvidence([], ['Atom'], true);
@@ -1620,15 +1744,15 @@ function inferAtomType(
     if (node.children.some((child) => child.type === 'string')) {
         return buildTypeEvidence([createNameTypeTerm('String')], ['Grounded', 'Atom']);
     }
-    if (node.children.some((child) => child.type === 'variable')) {
-        const variableNode = node.children.find((child) => child.type === 'variable');
-        if (variableNode && parameterTypeEnvironment) {
+    const variableNode = node.children.find((child) => child.type === 'variable');
+    if (variableNode) {
+        if (parameterTypeEnvironment) {
             const mapped = parameterTypeEnvironment.get(variableNode.text);
             if (mapped) {
                 return buildTypeEvidence([mapped], ['Variable', 'Atom']);
             }
         }
-        return buildTypeEvidence([createNameTypeTerm('Variable')], ['Variable', 'Atom'], true);
+        return buildTypeEvidence([{ kind: 'var', name: variableNode.text }], ['Variable', 'Atom'], true);
     }
 
     const symbolNode = node.children.find((child) => child.type === 'symbol');
@@ -1674,7 +1798,8 @@ function inferListType(
     getTypedOverloads: (name: string) => TypedOverload[],
     cache: Map<string, TypeEvidence>,
     inProgress: Set<string>,
-    parameterTypeEnvironment: Map<string, TypeTerm> | null
+    parameterTypeEnvironment: Map<string, TypeTerm> | null,
+    expectedReturnType: TypeTerm | null = null
 ): TypeEvidence {
     const metaKinds: MetaTypeKind[] = ['Expression', 'Atom'];
     const children = getNamedChildren(node);
@@ -1683,6 +1808,46 @@ function inferListType(
     }
 
     const head = children[0];
+    const headSymbol = getHeadSymbol(node);
+
+    if (headSymbol === 'if') {
+        const branches = children.slice(2);
+        const branchEvidences = branches.map((branch) =>
+            inferArgumentType(branch, getVisibleEntries, getTypedOverloads, cache, inProgress, parameterTypeEnvironment, expectedReturnType)
+        );
+        const candidates = branchEvidences.flatMap((ev) => ev.candidates);
+        const metaSet = new Set<MetaTypeKind>(metaKinds);
+        let unknown = false;
+        for (const ev of branchEvidences) {
+            for (const kind of ev.metaKinds) metaSet.add(kind);
+            if (ev.unknown) unknown = true;
+        }
+        return buildTypeEvidence(candidates, Array.from(metaSet), unknown);
+    }
+
+    if (headSymbol === 'case') {
+        const branches = children.slice(2);
+        const branchEvidences: TypeEvidence[] = [];
+        for (const branch of branches) {
+            if (branch.type === 'list') {
+                const branchChildren = getNamedChildren(branch);
+                if (branchChildren.length >= 2) {
+                    branchEvidences.push(
+                        inferArgumentType(branchChildren[1], getVisibleEntries, getTypedOverloads, cache, inProgress, parameterTypeEnvironment, expectedReturnType)
+                    );
+                }
+            }
+        }
+        const candidates = branchEvidences.flatMap((ev) => ev.candidates);
+        const metaSet = new Set<MetaTypeKind>(metaKinds);
+        let unknown = false;
+        for (const ev of branchEvidences) {
+            for (const kind of ev.metaKinds) metaSet.add(kind);
+            if (ev.unknown) unknown = true;
+        }
+        return buildTypeEvidence(candidates, Array.from(metaSet), unknown);
+    }
+
     if (head.type !== 'atom') {
         return buildTypeEvidence([], metaKinds, true);
     }
@@ -1917,7 +2082,8 @@ function matchTypeTerms(
         if (actual.kind === 'var') {
             const resolvedActual = resolveTypeTermBinding(actual, bindings);
             if (resolvedActual.kind === 'var') {
-                return false;
+                bindings.set(resolvedActual.name, expected);
+                return true;
             }
             return matchTypeTerms(expected, resolvedActual, bindings, activePairs);
         }
